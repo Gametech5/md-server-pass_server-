@@ -1,5 +1,4 @@
 import json
-import sys
 
 PROJECTS_FILE = 'projects.json'
 
