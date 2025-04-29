@@ -1,0 +1,5 @@
+# Sluit mappen uit
+node_modules/
+public/
+uploads/
+

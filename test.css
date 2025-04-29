@@ -1,0 +1,37 @@
+body {
+    font-family: sans-serif;
+    padding: 40px;
+    overflow: hidden;
+  }
+  
+  .woord {
+    position: fixed;
+    font-size: 22px;
+    background: transparent;
+    pointer-events: none;
+  }
+  
+  #zin-opbouw {
+    display: flex;
+    gap: 4px; /* dit kun je kleiner of groter maken */
+    flex-wrap: wrap; /* laat woorden doorlopen op volgende regel als nodig */
+  }
+  
+  
+  .placeholder {
+    min-width: 20px;
+    width: auto;
+    min-height: 30px;
+    display: inline-block;
+    font-size: 22px;
+  }
+  
+  
+  #fake-cursor {
+    position: fixed;
+    width: 32px;
+    height: 32px;
+    z-index: 1000;
+    pointer-events: none;
+  }
+  
