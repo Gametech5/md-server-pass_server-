@@ -639,7 +639,7 @@ app.post("/delete-project", authenticate, (req, res) => {
 // ✏️ **Project bewerken**
 app.post("/edit-project", authenticate, (req, res) => {
     let projects = readJSON(PROJECTS_FILE);
-    const { name, description, full_des, status } = req.body;
+    const { name, description, full_des, status, files } = req.body;
 
     let project = projects.find((p) => p.name === name && p.owner === req.user.username);
     if (!project) {
@@ -649,6 +649,7 @@ app.post("/edit-project", authenticate, (req, res) => {
     project.description = description;
     project.full_des = full_des;
     project.status = status;
+    project.files = files;
 
     writeJSON(PROJECTS_FILE, projects);
     res.json({ message: "Project bijgewerkt" });
