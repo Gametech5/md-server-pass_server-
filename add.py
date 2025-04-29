@@ -1,5 +1,5 @@
 import json
-import A
+
 PROJECTS_FILE = 'projects.json'
 
 # Functie om de projecten te laden uit het JSON-bestand
