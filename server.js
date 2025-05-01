@@ -43,6 +43,12 @@ app.post('/upload', upload.array('image', 10), (req, res) => {
   res.json({ urls: req.files.map(file => '/mnt/hdd/uploads/' + file.filename) });
 });
 
+app.post("/test", (req, res) => {
+  console.log("TEST route hit");
+  res.json({ ok: true });
+});
+
+
 function readFeedback() {
   try {
     return JSON.parse(fs.readFileSync(FEEDBACK_FILE));
@@ -341,7 +347,7 @@ app.post("/login", async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(401).json({ error: "Ongeldige inloggegevens!" });
     }
-    const token = jwt.sign({ username, mentor: user.mentor, role: user.role, pfpUrl: user.pfpUrl }, SECRET_KEY, { expiresIn: "1h" });
+    const token = jwt.sign({ username, mentor: user.mentor, role: user.role, pfpUrl: user.pfpUrl }, SECRET_KEY, { expiresIn: "12h" });
     res.json({ token });
 });
 
@@ -563,7 +569,7 @@ app.post("/add-project", authenticate, (req, res) => {
     }
 
     let projects = readJSON(PROJECTS_FILE);
-    projects.push({ name, description, full_des, status, owner: req.user.username,sharedWith: [req.user.mentor], adver, files: files || []});
+    projects.push({ name, description, full_des, status, owner: req.user.username,sharedWith: [req.user.mentor], adver, files: files || [], UID: Math.floor(Math.random() * 1000001)});
 
     writeJSON(PROJECTS_FILE, projects);
     res.json({ message: "Project toegevoegd" });
@@ -591,19 +597,45 @@ app.get("/projects", authenticate, (req, res) => {
     res.json(userProjects);
 });
 
+// 📥 **Get project details by UID**
+app.get("/project/:uid", authenticate, (req, res) => {
+  const uid = Number(req.params.uid);
+  if (isNaN(uid)) {
+    return res.status(400).json({ error: "Ongeldig UID-formaat" });
+  }
+
+  const projects = readJSON(PROJECTS_FILE);
+  const project = projects.find(p => p.UID === uid);
+
+  if (!project) {
+    return res.status(404).json({ error: "Project niet gevonden" });
+  }
+
+  // Only allow owner or sharedWith users (or admins) to view private projects
+  if (!project.adver && project.owner !== req.user.username && !project.sharedWith?.includes(req.user.username) && req.user.role !== "admin") {
+    return res.status(403).json({ error: "Geen toegang tot dit project" });
+  }
+
+  res.json(project);
+});
+
 
 
 // 🗑️ **Project verwijderen inclusief afbeelding**
 app.post("/delete-project", authenticate, (req, res) => {
+    console.log("Coming in hot");
     let projects = readJSON(PROJECTS_FILE);
-    const { name } = req.body;
+    const { name, UID } = req.body;
+    console.log("UID dat naar backend gaat:", UID);
+    console.log("Projecten in de lijst:", projects);
+    console.log("Vergeleken project:", { name, UID, owner: req.user.username })
 
     const projectToDelete = projects.find(
-        (p) => p.name === name && p.owner === req.user.username
+        (p) => p.name === name && p.owner === req.user.username && p.UID === Number(UID)
     );
 
     if (!projectToDelete) {
-        return res.status(404).json({ error: "Project niet gevonden of geen rechten" });
+        return res.status(345).json({ error: "Project niet gevonden of geen rechten" });
     }
 
     // Verwijder alle bestanden die bij het project horen
@@ -625,7 +657,7 @@ app.post("/delete-project", authenticate, (req, res) => {
 
     // Verwijder het project uit de lijst
     const filteredProjects = projects.filter(
-        (p) => !(p.name === name && p.owner === req.user.username)
+        (p) => !(p.name === name && p.owner === req.user.username && p.UID === Number(UID))
     );
 
     writeJSON(PROJECTS_FILE, filteredProjects);
@@ -658,4 +690,5 @@ app.post("/edit-project", authenticate, (req, res) => {
 // 🚀 **Server starten**
 app.listen(PORT, () => {
     console.log(`🚀 Server draait op poort ${PORT}`);
+    console.log(Math.floor(Math.random() * 10001));
 });
