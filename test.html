@@ -1,16 +1,15 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="UTF-8" />
-  <title>Zin Opbouw</title>
-  <link rel="stylesheet" href="test.css" />
+  <meta charset="UTF-8">
+  <title>Zin Animatie</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <h2>Sleepwoorden met automatische cursor</h2>
+  <h2>Zin opbouwen</h2>
 
   <div id="word-container">
-    <!-- Woorden, jij kiest zelf hun beginpositie -->
     <span class="woord" data-index="0" style="left: 100px; top: 150px;">De</span>
     <span class="woord" data-index="1" style="left: 300px; top: 100px;">kat</span>
     <span class="woord" data-index="2" style="left: 200px; top: 200px;">zit</span>
@@ -20,7 +19,6 @@
   </div>
 
   <div id="zin-opbouw">
-    <!-- Lege plekken voor de zin -->
     <span class="placeholder" data-index="0"></span>
     <span class="placeholder" data-index="1"></span>
     <span class="placeholder" data-index="2"></span>
@@ -29,8 +27,8 @@
     <span class="placeholder" data-index="5"></span>
   </div>
 
-  <img src="cursor.png" id="fake-cursor" />
+  <img src="cursor.png" id="fake-cursor" alt="cursor" />
 
-  <script src="test.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>

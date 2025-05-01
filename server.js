@@ -7,6 +7,34 @@ const cors = require('cors')
 const app = express();
 const PORT = 3000;
 const SECRET_KEY = "myWE1H6!4%"; // 🔑 Zorg ervoor dat deze veilig blijft!
+const nodemailer = require('nodemailer');
+let codes = {}
+// Transporter instellen (hier met Gmail, maar je kunt ook andere SMTP-servers gebruiken)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: 'joris9210@gmail.com',        // jouw e-mailadres
+    pass: 'nuem vimy tgwp dljm'     // gebruik een app-password, NIET je gewone wachtwoord
+  }
+});
+
+// E-mailgegevens
+const mailOptions = {
+  from: 'joris9210@gmail.com',
+  to: 'joris9210@gmail.com',
+  subject: 'Testbericht',
+  text: 'Hallo! Dit is een test-e-mail vanuit je Node.js-app.'
+};
+
+// Versturen
+transporter.sendMail(mailOptions, (error, info) => {
+  if (error) {
+    console.error('Fout bij versturen:', error);
+  } else {
+    console.log('E-mail verstuurd:', info.response);
+  }
+});
+
 
 const USERS_FILE = "/mnt/hdd/users.json";
 const CODE_FILE= "/mnt/hdd/code.json";
@@ -306,8 +334,49 @@ app.put("/edit-usr", async (req, res) => {
     res.json({ message: "Gebruiker succesvol bijgewerkt!" });
 });
 
+app.post("/send-code", async (req, res) => {
+  console.log("⚙️ /send-code payload:", req.body);
+  const { username, email } = req.body;
+  if (!email) {
+    console.error("❌ /send-code error: no email provided");
+    return res.status(400).json({ success: false, error: "Email is required" });
+  }
 
+  const code = Math.floor(Math.random() * 1000000); // tot 6 cijfers
+console.log(`✉️  Will send code ${code} to:`, email);
+  const mailOptions = {
+    from: 'joris9210@gmail.com',
+    to: email,
+    subject: 'Je verificatiecode',
+    text: `Beste ${username},\n\nUw inlogcode is: ${code}\n\nMet vriendelijke groet,\nMasterdev`
+  };
 
+  try {
+    await transporter.sendMail(mailOptions);
+    codes[email] = code;
+    res.json({ success: true, code }); // ⚠️ Stuur de code NIET mee naar frontend in productie!
+  } catch (error) {
+    console.error("Fout bij verzenden e-mail:", error);
+    res.status(500).json({ success: false, error: "Kon e-mail niet verzenden" });
+  }
+});
+
+app.post('/verify-code', (req, res) => {
+  const { email, codeEntered } = req.body;
+
+  // Haal de opgeslagen code op voor het opgegeven e-mailadres
+  const storedCode = codes[email];
+
+  if (storedCode) {
+    if (storedCode == codeEntered) {
+      res.status(200).json({ success: true, message: 'Code geverifieerd' });
+    } else {
+      res.status(400).json({ success: false, message: 'Onjuiste code' });
+    }
+  } else {
+    res.status(404).json({ success: false, message: 'Geen code gevonden voor dit e-mailadres' });
+  }
+});
 
 
 app.post("/sign", async (req, res) => {

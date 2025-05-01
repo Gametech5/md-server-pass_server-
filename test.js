@@ -5,93 +5,67 @@ const placeholders = document.querySelectorAll(".placeholder");
 cursor.style.left = "0px";
 cursor.style.top = "0px";
 
-// Slaapfunctie
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Cursor bewegen
-function moveCursorTo(x, y) {
+function moveTo(x, y, callback) {
   return new Promise(resolve => {
     const interval = setInterval(() => {
-      const curX = parseFloat(cursor.style.left);
-      const curY = parseFloat(cursor.style.top);
-      const dx = x - curX;
-      const dy = y - curY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      let curX = parseFloat(cursor.style.left);
+      let curY = parseFloat(cursor.style.top);
+      let dx = x - curX;
+      let dy = y - curY;
+      let dist = Math.sqrt(dx * dx + dy * dy);
 
       if (dist < 2) {
         cursor.style.left = `${x}px`;
         cursor.style.top = `${y}px`;
+        if (callback) callback(x, y);
         clearInterval(interval);
         resolve();
       } else {
-        const stepX = curX + dx * 0.2;
-        const stepY = curY + dy * 0.2;
-        cursor.style.left = `${stepX}px`;
-        cursor.style.top = `${stepY}px`;
+        curX += dx * 0.15;
+        curY += dy * 0.15;
+        cursor.style.left = `${curX}px`;
+        cursor.style.top = `${curY}px`;
+        if (callback) callback(curX, curY);
       }
     }, 16);
   });
 }
 
-// Cursor én woord samen bewegen
-function moveCursorAndWordTogether(wordEl, toX, toY) {
-  return new Promise(resolve => {
-    const interval = setInterval(() => {
-      const curX = parseFloat(cursor.style.left);
-      const curY = parseFloat(cursor.style.top);
-      const dx = toX - curX;
-      const dy = toY - curY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist < 2) {
-        cursor.style.left = `${toX}px`;
-        cursor.style.top = `${toY}px`;
-        wordEl.style.left = `${toX}px`;
-        wordEl.style.top = `${toY}px`;
-        clearInterval(interval);
-        resolve();
-      } else {
-        const stepX = curX + dx * 0.2;
-        const stepY = curY + dy * 0.2;
-        cursor.style.left = `${stepX}px`;
-        cursor.style.top = `${stepY}px`;
-        wordEl.style.left = `${stepX}px`;
-        wordEl.style.top = `${stepY}px`;
-      }
-    }, 16);
-  });
-}
-
-// Start animatie
-async function startOpbouw() {
-  for (const wordEl of woorden) {
-    const index = parseInt(wordEl.getAttribute("data-index"));
+async function start() {
+  for (const woord of woorden) {
+    const index = parseInt(woord.dataset.index);
     const placeholder = document.querySelector(`.placeholder[data-index="${index}"]`);
 
-    const wordRect = wordEl.getBoundingClientRect();
-    const startX = wordRect.left;
-    const startY = wordRect.top;
-
+    const wordRect = woord.getBoundingClientRect();
     const targetRect = placeholder.getBoundingClientRect();
+
+    const wordX = wordRect.left;
+    const wordY = wordRect.top;
     const targetX = targetRect.left;
     const targetY = targetRect.top;
 
-    // Stap 1: Ga naar het woord
-    await moveCursorTo(startX, startY);
-    await sleep(150);
+    // Ga naar woord
+    await moveTo(wordX, wordY);
 
-    // Stap 2: Sleep het woord naar zijn plek
-    await moveCursorAndWordTogether(wordEl, targetX, targetY);
-    await sleep(100);
+    // Sleep woord
+    await moveTo(targetX, targetY, (x, y) => {
+      woord.style.left = `${x}px`;
+      woord.style.top = `${y}px`;
+    });
 
-    // Stap 3: Plaats het woord in de placeholder
-    placeholder.textContent = wordEl.textContent;
-    wordEl.style.display = "none";
+    // Zet woord neer
+    placeholder.textContent = woord.textContent;
+    woord.style.display = "none";
 
-    await sleep(300);
+    await sleep(200);
   }
+
+  // Als klaar: cursor naar rechtsonder en laat verdwijnen
+  await moveTo(window.innerWidth + 100, window.innerHeight + 100);
 }
 
-startOpbouw();
+start();
