@@ -484,7 +484,7 @@ app.put("/edit-user", authenticate, async (req, res) => {
 
 // 🗑️ **Delete User**
 app.post("/delete-user", authenticate, (req, res) => {
-    let users = readJSON(USERS_FILE);  
+    let users = readJSON(USERS_FILE);
     const username = req.user.username; // Get logged-in user
 
     // Filter out the current user
