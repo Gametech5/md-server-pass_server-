@@ -368,8 +368,15 @@ app.post("/verify-rst-code", (req, res) => {
 
 
 app.post("/send-rst-code", async (req, res) => {
-  console.log("⚙️ /send-code payload:", req.body);
   const { username, email } = req.body;
+  const users = readJSON(USERS_FILE);
+  const UserIndex = users.findIndex(user => user.email === email);
+  if (UserIndex === -1){
+     return res.status(404).json({success: false, error: "User not found"});
+  }
+  const user = users[UserIndex];
+  console.log(user.username);
+  console.log("⚙️ /send-code payload:", req.body);
   if (!email) {
     console.error("❌ /send-code error: no email provided");
     return res.status(400).json({ success: false, error: "Email is required" });
@@ -381,13 +388,13 @@ app.post("/send-rst-code", async (req, res) => {
     from: 'joris9210@gmail.com',
     to: email,
     subject: 'Je resetcode',
-    text: `Beste gebruiker,\n\nUw resetcode is: ${code}\n\nMet vriendelijke groet,\nMasterDev`
+    text: `Beste ${user.username},\n\nUw resetcode is: ${code}\n\nMet vriendelijke groet,\nMasterDev`
   };
 
   try {
     await transporter.sendMail(mailOptions);
     rst_codes[email] = code;
-    res.json({ success: true, code }); // ⚠️ Stuur de code NIET mee naar frontend in producti>
+    res.json({ success: true }); // ⚠️ Stuur de code NIET mee naar frontend in producti>
   } catch (error) {
     console.error("Fout bij verzenden e-mail:", error);
     res.status(500).json({ success: false, error: "Kon e-mail niet verzenden" });
@@ -415,7 +422,7 @@ console.log(`✉️  Will send code ${code} to:`, email);
   try {
     await transporter.sendMail(mailOptions);
     codes[email] = code;
-    res.json({ success: true, code }); // ⚠️ Stuur de code NIET mee naar frontend in productie!
+    res.json({ success: true }); // ⚠️ Stuur de code NIET mee naar frontend in productie!
   } catch (error) {
     console.error("Fout bij verzenden e-mail:", error);
     res.status(500).json({ success: false, error: "Kon e-mail niet verzenden" });
