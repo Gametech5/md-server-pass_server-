@@ -9,6 +9,7 @@ const PORT = 3000;
 const SECRET_KEY = "myWE1H6!4%"; // 🔑 Zorg ervoor dat deze veilig blijft!
 const nodemailer = require('nodemailer');
 let codes = {}
+let rst_codes = {}
 // Transporter instellen (hier met Gmail, maar je kunt ook andere SMTP-servers gebruiken)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -93,10 +94,6 @@ app.post('/submit-feedback', (req, res) => {
 
     res.json({ success: true });
 });
-
-
-
-
 
 // Verwijderfunctie
 function deleteImage(imageUrl) {
@@ -324,6 +321,80 @@ app.put("/edit-usr", async (req, res) => {
     res.json({ message: "Gebruiker succesvol bijgewerkt!" });
 });
 
+app.post("/edit-passwd", async (req, res) => {
+const { email, new_password } = req.body;
+const users = readJSON(USERS_FILE); // Laad de gebruikers
+const userIndex = users.findIndex(user => user.email === email); // Zoek de gebruiker in de lijst
+
+if (userIndex === -1) {
+  return res.status(404).json({ error: "Gebruiker niet gevonden!" });
+}
+
+const user = users[userIndex]; // Initialiseer de gebruiker na het vinden van de index
+
+const newPassword = await bcrypt.hash(new_password,10);
+
+user.password = newPassword;
+
+console.log(user.role); // Toegang tot de rol van de gebruiker
+
+writeJSON(USERS_FILE, users);
+
+res.json({ success: true, message: "YAYYYY" });
+
+});
+
+
+app.post("/verify-rst-code", (req, res) => {
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    return res.status(400).json({ success: false, error: "Email en code zijn vereist." });
+  }
+
+  const expectedCode = rst_codes[email];
+  if (!expectedCode) {
+    return res.status(404).json({ success: false, error: "Geen code gevonden voor dit e-mailadres." });
+  }
+
+  if (parseInt(code) === parseInt(expectedCode)) {
+    // Je zou hier ook een tijdelijke sessie/token kunnen aanmaken om wachtwoord te resetten
+    delete rst_codes[email]; // Optioneel: eenmalige code
+    return res.json({ success: true });
+  } else {
+    return res.status(401).json({ success: false, error: "Ongeldige code." });
+  }
+});
+
+
+app.post("/send-rst-code", async (req, res) => {
+  console.log("⚙️ /send-code payload:", req.body);
+  const { username, email } = req.body;
+  if (!email) {
+    console.error("❌ /send-code error: no email provided");
+    return res.status(400).json({ success: false, error: "Email is required" });
+  }
+
+  const code = Math.floor(Math.random() * 1000000); // tot 6 cijfers
+  console.log(`✉️  Will send code ${code} to:`, email);
+  const mailOptions = {
+    from: 'joris9210@gmail.com',
+    to: email,
+    subject: 'Je resetcode',
+    text: `Beste gebruiker,\n\nUw resetcode is: ${code}\n\nMet vriendelijke groet,\nMasterDev`
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    rst_codes[email] = code;
+    res.json({ success: true, code }); // ⚠️ Stuur de code NIET mee naar frontend in producti>
+  } catch (error) {
+    console.error("Fout bij verzenden e-mail:", error);
+    res.status(500).json({ success: false, error: "Kon e-mail niet verzenden" });
+  }
+});
+
+
 app.post("/send-code", async (req, res) => {
   console.log("⚙️ /send-code payload:", req.body);
   const { username, email } = req.body;
@@ -370,7 +441,7 @@ app.post('/verify-code', (req, res) => {
 
 
 app.post("/sign", async (req, res) => {
-    const { username, password, role, mentor, pfpUrl } = req.body;
+    const { username, password, role, mentor, email, pfpUrl } = req.body;
 
     if (!username || !password) {
         return res.status(400).json({ error: "Gebruikersnaam en wachtwoord zijn verplicht!" });
@@ -390,6 +461,7 @@ app.post("/sign", async (req, res) => {
         role: role || "user",
         tokens: -1000,  // 🎉 Elke nieuwe gebruiker krijg 0 tokens
 	mentor: mentor || "",
+        email,
         pfpUrl
     });
 
