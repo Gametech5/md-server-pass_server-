@@ -62,12 +62,6 @@ app.post('/upload', upload.array('image', 10), (req, res) => {
   res.json({ urls: req.files.map(file => '/mnt/hdd/uploads/' + file.filename) });
 });
 
-app.post("/test", (req, res) => {
-  console.log("TEST route hit");
-  res.json({ ok: true });
-});
-
-
 function readFeedback() {
   try {
     return JSON.parse(fs.readFileSync(FEEDBACK_FILE));
@@ -409,9 +403,14 @@ app.post("/send-code", async (req, res) => {
     console.error("❌ /send-code error: no email provided");
     return res.status(400).json({ success: false, error: "Email is required" });
   }
+  const data = readJSON(USERS_FILE);
+  const found = data.some(entry => entry.email === email);
+  if (found){
+      return res.status(400).json({success: false, error: "email is al in gebruik"});
+  }
 
   const code = Math.floor(Math.random() * 1000000); // tot 6 cijfers
-console.log(`✉️  Will send code ${code} to:`, email);
+  console.log(`✉️  Will send code ${code} to:`, email);
   const mailOptions = {
     from: 'joris9210@gmail.com',
     to: email,
