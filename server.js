@@ -27,10 +27,10 @@ const mailOptions = {
   text: 'Hallo! Dit is een test-e-mail vanuit je Node.js-app.'
 };
 
-const USERS_FILE = "/mnt/hdd/users.json";
-const CODE_FILE= "/mnt/hdd/code.json";
-const PROJECTS_FILE = "/mnt/hdd/projects.json";
-const FEEDBACK_FILE = '/mnt/hdd/feedback.json';
+const USERS_FILE = "/media/pi/NieuwVolume/users.json";
+const CODE_FILE= "/media/pi/NieuwVolume/code.json";
+const PROJECTS_FILE = "/media/pi/NieuwVolume/projects.json";
+const FEEDBACK_FILE = '/media/pi/NieuwVolume/feedback.json';
 
 const multer = require('multer');
 const path = require('path');
@@ -40,7 +40,7 @@ app.use(bodyParser.json());
 app.use(cors());
 
 // Map waar geüploade bestanden worden opgeslagen
-const uploadDir = '/mnt/hdd/uploads';
+const uploadDir = '/media/pi/NieuwVolume/uploads';
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
 // Multer configuratie
@@ -59,7 +59,7 @@ const upload = multer({ storage: storage });
 
 app.post('/upload', upload.array('image', 10), (req, res) => {
   if (!req.files) return res.status(400).json({ error: 'Geen bestanden ontvangen' });
-  res.json({ urls: req.files.map(file => '/mnt/hdd/uploads/' + file.filename) });
+  res.json({ urls: req.files.map(file => '/media/pi/NieuwVolume/uploads/' + file.filename) });
 });
 
 function readFeedback() {
