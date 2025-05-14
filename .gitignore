@@ -3,3 +3,6 @@ node_modules/
 public/
 uploads/
 .env
+server.js.save
+server.js.save.1
+server.js.save.2
