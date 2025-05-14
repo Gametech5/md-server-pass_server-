@@ -11,7 +11,7 @@ const SECRET_KEY = process.env.API_KEY; // 🔑 Zorg ervoor dat deze veilig blij
 const nodemailer = require('nodemailer');
 let codes = {}
 let rst_codes = {}
-// Transporter instellen (hier met Gmail, maar je kunt ook andere SMTP-servers gebruiken)
+// Transporter instellen (hier met Gmail)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
