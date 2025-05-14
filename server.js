@@ -796,6 +796,39 @@ app.post("/delete-project", authenticate, (req, res) => {
     res.json({ message: "Project verwijderd" });
 });
 
+app.post("/new-delete-project", authenticate, (req, res) => {
+    let projects = readJSON(PROJECTS_FILE);
+    const { name, UID } = req.body;
+
+    const projectToDelete = projects.find(
+        (p) => p.name === name && p.owner === req.user.username && p.UID === Number(UID)
+    );
+
+    if (!projectToDelete) {
+        return res.status(404).json({ error: "Project niet gevonden of geen rechten" });
+    }
+
+    // Markeer project voor verwijdering
+    projectToDelete.delete = true;
+
+    // Voeg tijd van uitvoering toe (bijvoorbeeld 30 dagen later)
+    let executionDate = new Date();
+    executionDate.setDate(executionDate.getDate() + 30);  // Voeg 30 dagen toe aan de huidige datum
+
+    // Log de tijd van uitvoering om te zien of de datum goed wordt ingesteld
+    console.log(`Tijd van uitvoering: ${executionDate.toISOString()}`);
+
+    // Gebruik de juiste naam: 'timeOfExecution' in plaats van 'timeOfExcecution'
+    projectToDelete.timeOfExecution = executionDate.toISOString(); 
+
+    // Schrijf de wijzigingen terug naar het bestand
+    writeJSON(PROJECTS_FILE, projects);
+
+    res.json({ message: "Project gemarkeerd voor verwijdering" });
+});
+
+
+
 
 
 
