@@ -7,7 +7,7 @@ const bcrypt = require("bcrypt");
 const cors = require('cors')
 const app = express();
 const PORT = 3000;
-const SECRET_KEY = "process.env.API_KEY"; // 🔑 Zorg ervoor dat deze veilig blijft!
+const SECRET_KEY = process.env.API_KEY; // 🔑 Zorg ervoor dat deze veilig blijft!
 const nodemailer = require('nodemailer');
 let codes = {}
 let rst_codes = {}
@@ -850,6 +850,32 @@ app.post("/edit-project", authenticate, (req, res) => {
     writeJSON(PROJECTS_FILE, projects);
     res.json({ message: "Project bijgewerkt" });
 });
+
+function checkAndDeleteExpiredProjects() {
+    let projects = readJSON(PROJECTS_FILE);
+    const now = new Date();
+
+    // Filter projecten: hou alleen projecten die NIET verlopen zijn
+    const updatedProjects = projects.filter((project) => {
+        if (project.timeOfExecution) {
+            const execTime = new Date(project.timeOfExecution);
+            if (now >= execTime) {
+                console.log(`Verwijdert project: ${project.name} van ${project.owner}`);
+                return false; // project is verlopen → NIET behouden
+            }
+        }
+        return true; // behouden
+    });
+
+    if (updatedProjects.length !== projects.length) {
+        writeJSON(PROJECTS_FILE, updatedProjects);
+        console.log("Verlopen projecten verwijderd.");
+    }
+}
+
+// Controleer elke minuut
+setInterval(checkAndDeleteExpiredProjects, 6 * 1000); // 6 * 1000 ms = 6 seconden
+
 
 // 🚀 **Server starten**
 app.listen(PORT, () => {
