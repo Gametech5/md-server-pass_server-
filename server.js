@@ -6,7 +6,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const cors = require('cors')
 const app = express();
-const PORT = 3000;
+const PORT = 3000; // Kan veranderd worden voor lokaal of productie
 const SECRET_KEY = process.env.API_KEY; // 🔑 Zorg ervoor dat deze veilig blijft!
 const nodemailer = require('nodemailer');
 let codes = {}
@@ -15,8 +15,8 @@ let rst_codes = {}
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'joris9210@gmail.com',        // jouw e-mailadres
-    pass: 'nuem vimy tgwp dljm'     // gebruik een app-password, NIET je gewone wachtwoord
+    user: 'joris9210@gmail.com', 
+    pass: 'nuem vimy tgwp dljm'
   }
 });
 
@@ -28,6 +28,7 @@ const mailOptions = {
   text: 'Hallo! Dit is een test-e-mail vanuit je Node.js-app.'
 };
 
+// Waar zijn alle bestanden?
 const USERS_FILE = "/media/pi/NieuwVolume/users.json";
 const CODE_FILE= "/media/pi/NieuwVolume/code.json";
 const PROJECTS_FILE = "/media/pi/NieuwVolume/projects.json";
@@ -76,7 +77,7 @@ function writeFeedback(data) {
 }
 
 
-// 👉 Feedback toevoegen
+//  Feedback toevoegen
 app.post('/submit-feedback', (req, res) => {
     const { name, email, feedback } = req.body;
     if (!name || !email || !feedback) {
@@ -106,7 +107,7 @@ function deleteImage(imageUrl) {
 // Statische bestanden serveren
 app.use('/mnt/hdd/uploads', express.static(uploadDir));
 
-// 📂 Helperfunctie om JSON-bestanden te lezen
+// Helperfunctie om JSON-bestanden te lezen
 const readJSON = (file) => {
     try {
         return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -116,7 +117,7 @@ const readJSON = (file) => {
     }
 };
 
-// 💾 Helperfunctie om JSON-bestanden te schrijven
+// Helperfunctie om JSON-bestanden te schrijven
 const writeJSON = (file, data) => {
     try {
         fs.writeFileSync(file, JSON.stringify(data, null, 2));
@@ -126,18 +127,20 @@ const writeJSON = (file, data) => {
     }
 };
 
-// 👤 **Check of gebruiker al bestaat**
+// Check of gebruiker al bestaat
 const userExists = (username) => {
     let users = readJSON(USERS_FILE);
     return users.some(user => user.username === username);
 };
+
+// Is de server wel levend?
 
 app.get('/health-check', (req, res) => {
     res.status(200).send('Server is up!');
 });
 
 
-// ✅ **Controleer of gebruikersnaam al bestaat (real-time validatie)**
+// Controleer of gebruikersnaam al bestaat (real-time validatie)
 app.post("/check-username", (req, res) => {
     const { username } = req.body;
     if (!username) {
@@ -150,31 +153,8 @@ app.post("/check-username", (req, res) => {
 
     res.json({ message: "Gebruikersnaam beschikbaar" });
 });
- 
 
-// Unlike a project
-app.post("/unlike-project", (req, res) => {
-    const ipAddress = req.ip;
-    const { name } = req.body;
-    
-    let projects = readJSON(PROJECTS_FILE);
-    
-    let project = projects.find(p => p.name === name);
-    if (!project) {
-        return res.status(404).json({ error: "Project niet gevonden!" });
-    }
-
-    if (!project.likedBy || !project.likedBy.includes(ipAddress)) {
-        return res.status(400).json({ error: "Je hebt dit project niet geliket!" });
-    }
-
-    project.likedBy = project.likedBy.filter(ip => ip !== ipAddress);
-    project.likes = Math.max((project.likes || 0) - 1, 0); // Prevent negative likes
-
-    writeJSON(PROJECTS_FILE, projects);
-    res.json({ name: project.name, likes: project.likes });
-});
-
+// Oude code die klaar is voor bijv publieke projecten
 
 app.get("/user-status", (req, res) => {
     const ipAddress = req.ip;
@@ -187,85 +167,7 @@ app.get("/user-status", (req, res) => {
 });
 
 
-// Like a project
-app.post("/like-project", (req, res) => {
-    const ipAddress = req.ip;
-    const { name } = req.body;
-    
-    let projects = readJSON(PROJECTS_FILE);
-    
-    let project = projects.find(p => p.name === name);
-    if (!project) {
-        return res.status(404).json({ error: "Project niet gevonden!" });
-    }
-
-    // Check if the IP has already liked the project
-    if (!project.likedBy) {
-        project.likedBy = [];
-    }
-
-    if (project.likedBy.includes(ipAddress)) {
-        return res.status(400).json({ error: "Je hebt dit project al geliket!" });
-    }
-
-    project.likedBy.push(ipAddress);
-    project.likes = (project.likes || 0) + 1;
-
-    writeJSON(PROJECTS_FILE, projects);
-    res.json({ name: project.name, likes: project.likes });
-});
-
-// Undo dislike
-app.post("/undislike-project", (req, res) => {
-    const ipAddress = req.ip;
-    const { name } = req.body;
-
-    let projects = readJSON(PROJECTS_FILE);
-    let project = projects.find(p => p.name === name);
-    if (!project) {
-        return res.status(404).json({ error: "Project niet gevonden!" });
-    }
-
-    if (!project.dislikedBy) project.dislikedBy = [];
-    if (!project.dislikes) project.dislikes = 0; // <-- Fix voor NaN
-
-    const index = project.dislikedBy.indexOf(ipAddress);
-    if (index === -1) {
-        return res.status(400).json({ error: "Je hebt dit project niet gedisliket!" });
-    }
-
-    project.dislikedBy.splice(index, 1);
-    project.dislikes = Math.max(0, project.dislikes - 1); // <-- Zorgt ervoor dat het nooit onder 0 gaat
-
-    writeJSON(PROJECTS_FILE, projects);
-    res.json({ name: project.name, dislikes: project.dislikes });
-});
-
-// Dislike een project
-app.post("/dislike-project", (req, res) => {
-    const ipAddress = req.ip;
-    const { name } = req.body;
-
-    let projects = readJSON(PROJECTS_FILE);
-    let project = projects.find(p => p.name === name);
-    if (!project) {
-        return res.status(404).json({ error: "Project niet gevonden!" });
-    }
-
-    if (!project.dislikedBy) project.dislikedBy = [];
-    if (!project.likedBy) project.likedBy = [];
-    if (!project.dislikes) project.dislikes = 0; // <-- Fix voor NaN
-
-    if (project.dislikedBy.includes(ipAddress)) {
-        return res.status(400).json({ error: "Je hebt dit project al gedisliket!" });
-    }
-
-    project.dislikedBy.push(ipAddress);
-    project.dislikes += 1;
-
-    writeJSON(PROJECTS_FILE, projects);
-    res.json({ name: project.name, dislikes: project.dislikes });
-});
+// Code voor het bewerken van gebruikers (setting pagina moet nog maken)
 
 app.put("/edit-usr", async (req, res) => {
     const { username, passwd, newUsername, newPassword } = req.body;
@@ -316,10 +218,12 @@ app.put("/edit-usr", async (req, res) => {
     res.json({ message: "Gebruiker succesvol bijgewerkt!" });
 });
 
+// voor wachtvoord vergeten
+
 app.post("/edit-passwd", async (req, res) => {
 const { email, new_password } = req.body;
-const users = readJSON(USERS_FILE); // Laad de gebruikers
-const userIndex = users.findIndex(user => user.email === email); // Zoek de gebruiker in de lijst
+const users = readJSON(USERS_FILE);
+const userIndex = users.findIndex(user => user.email === email);
 
 if (userIndex === -1) {
   return res.status(404).json({ error: "Gebruiker niet gevonden!" });
@@ -337,6 +241,8 @@ res.json({ success: true, message: "YAYYYY" });
 
 });
 
+// Controleer of de gebruikers ingevoerde code legaal is
+
 
 app.post("/verify-rst-code", (req, res) => {
   const { email, code } = req.body;
@@ -351,14 +257,14 @@ app.post("/verify-rst-code", (req, res) => {
   }
 
   if (parseInt(code) === parseInt(expectedCode)) {
-    // Je zou hier ook een tijdelijke sessie/token kunnen aanmaken om wachtwoord te resetten
-    delete rst_codes[email]; // Optioneel: eenmalige code
+    delete rst_codes[email]; 
     return res.json({ success: true });
   } else {
     return res.status(401).json({ success: false, error: "Ongeldige code." });
   }
 });
 
+// Stuur de resetcode naar de gebruiker
 
 app.post("/send-rst-code", async (req, res) => {
   const { username, email } = req.body;
@@ -375,7 +281,7 @@ app.post("/send-rst-code", async (req, res) => {
     return res.status(400).json({ success: false, error: "Email is required" });
   }
 
-  const code = Math.floor(Math.random() * 1000000); // tot 6 cijfers
+  const code = Math.floor(Math.random() * 1000000);
   console.log(`✉️  Will send code ${code} to:`, email);
   const mailOptions = {
     from: 'joris9210@gmail.com',
@@ -387,12 +293,14 @@ app.post("/send-rst-code", async (req, res) => {
   try {
     await transporter.sendMail(mailOptions);
     rst_codes[email] = code;
-    res.json({ success: true }); // ⚠️ Stuur de code NIET mee naar frontend in producti>
+    res.json({ success: true });
   } catch (error) {
     console.error("Fout bij verzenden e-mail:", error);
     res.status(500).json({ success: false, error: "Kon e-mail niet verzenden" });
   }
 });
+
+// Stuur code voor account aanmaken
 
 
 app.post("/send-code", async (req, res) => {
@@ -408,7 +316,7 @@ app.post("/send-code", async (req, res) => {
       return res.status(400).json({success: false, error: "email is al in gebruik"});
   }
 
-  const code = Math.floor(Math.random() * 1000000); // tot 6 cijfers
+  const code = Math.floor(Math.random() * 1000000); 
   console.log(`✉️  Will send code ${code} to:`, email);
   const mailOptions = {
     from: 'joris9210@gmail.com',
@@ -420,17 +328,18 @@ app.post("/send-code", async (req, res) => {
   try {
     await transporter.sendMail(mailOptions);
     codes[email] = code;
-    res.json({ success: true }); // ⚠️ Stuur de code NIET mee naar frontend in productie!
+    res.json({ success: true });
   } catch (error) {
     console.error("Fout bij verzenden e-mail:", error);
     res.status(500).json({ success: false, error: "Kon e-mail niet verzenden" });
   }
 });
 
+// controleer of de code klopt
+
 app.post('/verify-code', (req, res) => {
   const { email, codeEntered } = req.body;
 
-  // Haal de opgeslagen code op voor het opgegeven e-mailadres
   const storedCode = codes[email];
 
   if (storedCode) {
@@ -444,6 +353,7 @@ app.post('/verify-code', (req, res) => {
   }
 });
 
+// Maak de account aan
 
 app.post("/sign", async (req, res) => {
     const { username, password, role, mentor, email, pfpUrl } = req.body;
@@ -464,7 +374,7 @@ app.post("/sign", async (req, res) => {
         password: hashedPassword, 
         rank: "broke",  
         role: role || "user",
-        tokens: -1000,  // 🎉 Elke nieuwe gebruiker krijg 0 tokens
+        tokens: -1000,
 	mentor: mentor || "",
         email,
         pfpUrl
@@ -474,7 +384,7 @@ app.post("/sign", async (req, res) => {
     res.json({ message: "Account succesvol aangemaakt, log in!" });
 });
 
-// 🔑 **Inloggen en JWT-token genereren**
+// Inloggen en aanmaak van JWT-token
 app.post("/login", async (req, res) => {
     const { username, password } = req.body;
     let users = readJSON(USERS_FILE);
@@ -487,7 +397,7 @@ app.post("/login", async (req, res) => {
     res.json({ token });
 });
 
-// 🛡️ **Middleware om JWT te controleren**
+// Klopt die JWT token wel?
 const authenticate = (req, res, next) => {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) return res.status(403).json({ error: "Geen token verstrekt" });
@@ -500,6 +410,8 @@ const authenticate = (req, res, next) => {
     });
 };
 
+// Feedback bekijken
+
 app.get('/feedback', authenticate, (req, res) => {
   const role = req.user.role;
 
@@ -511,12 +423,14 @@ app.get('/feedback', authenticate, (req, res) => {
   }
 });
 
+// Upload profielafbeelding
+
 app.post('/upload-pfp', upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Geen bestand ontvangen' });
-  res.json({ url: `/uploads/${req.file.filename}` }); // ✅ JSON response
+  res.json({ url: `/uploads/${req.file.filename}` });
 });
 
-// ✏️ Gebruiker bewerken via JWT-token
+// Waarom tf bestaat deze hier?
 app.put("/edit-user", authenticate, async (req, res) => {
     const { newUsername, newPassword, newMentor, newPfpUrl } = req.body;
 
@@ -535,7 +449,6 @@ app.put("/edit-user", authenticate, async (req, res) => {
         }
         user.username = newUsername;
 
-        // ⚠️ Update de `req.user.username` als je token later opnieuw genereert
     }
 
     if (newPassword) {
@@ -558,7 +471,7 @@ app.put("/edit-user", authenticate, async (req, res) => {
 
 
 
-// 🗑️ **Delete User**
+// Verwijder de gebruiker
 app.post("/delete-user", authenticate, (req, res) => {
     let users = readJSON(USERS_FILE);  
     const username = req.user.username; // Get logged-in user
@@ -633,6 +546,8 @@ app.post("/buy-rank", authenticate, (req, res) => {
     res.json({ message: `Gefeliciteerd! Je bent nu ${newRank}`, tokens: user.tokens });
 });
 
+// Hele oude code voor bijv publieke projecten
+
 app.get("/check-rank", authenticate, (req, res) => {
     let users = readJSON(USERS_FILE);
     let ranks = readJSON("ranks.json");
@@ -666,7 +581,7 @@ app.get("/check-rank", authenticate, (req, res) => {
     res.json({ message: "Nog niet genoeg tokens voor een upgrade!", rank: user.rank, tokens: user.tokens });
 });
 
-// 🛒 **Koop tokens**
+// OOk hele oude code voor bijv publieke projecten
 app.post("/buy-tokens", authenticate, (req, res) => {
     let users = readJSON(USERS_FILE);
     let amount = parseInt(req.body.amount, 10); // 👈 Zet om naar een integer
@@ -685,7 +600,7 @@ app.post("/buy-tokens", authenticate, (req, res) => {
     res.json({ message: "Tokens toegevoegd!", tokens: user.tokens });
 });
 
-// 🔍 **Bekijk je tokensaldo**
+// OOk hele oude code voor bijv publieke projecten
 app.get("/check-tokens", authenticate, (req, res) => {
     let users = readJSON(USERS_FILE);
     const user = users.find(u => u.username === req.user.username);
@@ -696,7 +611,7 @@ app.get("/check-tokens", authenticate, (req, res) => {
 });
 
 
-// 📥 **Nieuwe projecten toevoegen**
+// Voeg project toe
 app.post("/add-project", authenticate, (req, res) => {
     const { name, description, full_des, status, adver, files } = req.body;
     if (!name || !description || !full_des || !status) {
@@ -711,7 +626,7 @@ app.post("/add-project", authenticate, (req, res) => {
 });
 
 
-// 📥 **Nieuwe projecten toevoegen**
+// Voeg code toe
 app.post("/add-code", authenticate, (req, res) => {
     const { name, description, full_des, status, adver } = req.body;
     if (!name || !description || !full_des || !status) {
@@ -725,14 +640,14 @@ app.post("/add-code", authenticate, (req, res) => {
     res.json({ message: "Project toegevoegd" });
 });
 
-// 📤 **Projecten ophalen**
+// Projecten ophalen
 app.get("/projects", authenticate, (req, res) => {
     let projects = readJSON(PROJECTS_FILE);
     let userProjects = projects.filter((p) => p.owner === req.user.username);
     res.json(userProjects);
 });
 
-// 📥 **Get project details by UID**
+// Projecten ophalen van een andere gebruiker voor admin's
 app.get("/project/:uid", authenticate, (req, res) => {
   const uid = Number(req.params.uid);
   if (isNaN(uid)) {
@@ -746,7 +661,6 @@ app.get("/project/:uid", authenticate, (req, res) => {
     return res.status(404).json({ error: "Project niet gevonden" });
   }
 
-  // Only allow owner or sharedWith users (or admins) to view private projects
   if (!project.adver && project.owner !== req.user.username && !project.sharedWith?.includes(req.user.username) && req.user.role !== "admin") {
     return res.status(403).json({ error: "Geen toegang tot dit project" });
   }
@@ -756,7 +670,7 @@ app.get("/project/:uid", authenticate, (req, res) => {
 
 
 
-// 🗑️ **Project verwijderen inclusief afbeelding**
+// Project verwijderen
 app.post("/delete-project", authenticate, (req, res) => {
     let projects = readJSON(PROJECTS_FILE);
     const { name, UID } = req.body;
@@ -786,7 +700,6 @@ app.post("/delete-project", authenticate, (req, res) => {
         });
     }
 
-    // Verwijder het project uit de lijst
     const filteredProjects = projects.filter(
         (p) => !(p.name === name && p.owner === req.user.username && p.UID === Number(UID))
     );
@@ -795,6 +708,8 @@ app.post("/delete-project", authenticate, (req, res) => {
 
     res.json({ message: "Project verwijderd" });
 });
+
+// Code voor nieuwe delete (nog niet klaar voor productie)
 
 app.post("/new-delete-project", authenticate, (req, res) => {
     let projects = readJSON(PROJECTS_FILE);
@@ -832,7 +747,7 @@ app.post("/new-delete-project", authenticate, (req, res) => {
 
 
 
-// ✏️ **Project bewerken**
+// Project bewerken
 app.post("/edit-project", authenticate, (req, res) => {
     let projects = readJSON(PROJECTS_FILE);
     const { name, description, full_des, status, files } = req.body;
@@ -851,20 +766,21 @@ app.post("/edit-project", authenticate, (req, res) => {
     res.json({ message: "Project bijgewerkt" });
 });
 
+// Project verwijderen als timeOfExecution is geraakt
+
 function checkAndDeleteExpiredProjects() {
     let projects = readJSON(PROJECTS_FILE);
     const now = new Date();
 
-    // Filter projecten: hou alleen projecten die NIET verlopen zijn
     const updatedProjects = projects.filter((project) => {
         if (project.timeOfExecution) {
             const execTime = new Date(project.timeOfExecution);
             if (now >= execTime) {
                 console.log(`Verwijdert project: ${project.name} van ${project.owner}`);
-                return false; // project is verlopen → NIET behouden
+                return false;
             }
         }
-        return true; // behouden
+        return true;
     });
 
     if (updatedProjects.length !== projects.length) {
@@ -873,7 +789,7 @@ function checkAndDeleteExpiredProjects() {
     }
 }
 
-// Controleer elke minuut
+// Controleer elke 6 sec
 setInterval(checkAndDeleteExpiredProjects, 6 * 1000); // 6 * 1000 ms = 6 seconden
 
 
