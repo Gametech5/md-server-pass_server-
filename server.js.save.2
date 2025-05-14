@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require("express");
 const fs = require("fs");
 const bodyParser = require("body-parser");
@@ -7,7 +6,7 @@ const bcrypt = require("bcrypt");
 const cors = require('cors')
 const app = express();
 const PORT = 3000;
-const SECRET_KEY = "process.env.API_KEY"; // 🔑 Zorg ervoor dat deze veilig blijft!
+const SECRET_KEY = "myWE1H6!4%"; // 🔑 Zorg ervoor dat deze veilig blijft!
 const nodemailer = require('nodemailer');
 let codes = {}
 let rst_codes = {}
@@ -331,6 +330,8 @@ const newPassword = await bcrypt.hash(new_password,10);
 
 user.password = newPassword;
 
+console.log(user.role); // Toegang tot de rol van de gebruiker
+
 writeJSON(USERS_FILE, users);
 
 res.json({ success: true, message: "YAYYYY" });
@@ -502,6 +503,7 @@ const authenticate = (req, res, next) => {
 
 app.get('/feedback', authenticate, (req, res) => {
   const role = req.user.role;
+  console.log("👤 Gebruikersrol:", role);
 
   if (role === "admin") {
     const feedback = readFeedback();
@@ -758,8 +760,12 @@ app.get("/project/:uid", authenticate, (req, res) => {
 
 // 🗑️ **Project verwijderen inclusief afbeelding**
 app.post("/delete-project", authenticate, (req, res) => {
+    console.log("Coming in hot");
     let projects = readJSON(PROJECTS_FILE);
     const { name, UID } = req.body;
+    console.log("UID dat naar backend gaat:", UID);
+    console.log("Projecten in de lijst:", projects);
+    console.log("Vergeleken project:", { name, UID, owner: req.user.username })
 
     const projectToDelete = projects.find(
         (p) => p.name === name && p.owner === req.user.username && p.UID === Number(UID)
