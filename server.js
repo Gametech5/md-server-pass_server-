@@ -831,7 +831,6 @@ app.get('/shared-projects', async (req, res) => {
   }
 });
 
-
 // 🚀 **Server starten**
 app.listen(PORT, () => {
     console.log(`🚀 Server draait op poort ${PORT}`);
