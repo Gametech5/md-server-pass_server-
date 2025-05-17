@@ -761,13 +761,13 @@ app.post("/get-shared-projects", authenticate, (req, res) => {
 // Project delen met een andere gebruiker
 
 app.post("/share-project", authenticate, (req, res) => {
-    const { name, username } = req.body;
-    if (!name || !username) {
+    const { name, username, UID } = req.body;
+    if (!name || !username || !UID) {
         return res.status(400).json({ error: "Projectnaam en gebruikersnaam zijn verplicht!" });
     }
 
     let projects = readJSON(PROJECTS_FILE);
-    let project = projects.find(p => p.name === name && p.owner === req.user.username);
+    let project = projects.find(p => p.name === name && p.owner === req.user.username && p.UID === Number(UID));
 
     if (!project) {
         return res.status(404).json({ error: "Project niet gevonden of geen rechten" });
