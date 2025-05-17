@@ -625,29 +625,6 @@ app.post("/add-project", authenticate, (req, res) => {
     res.json({ message: "Project toegevoegd" });
 });
 
-// Laat de shared-with-u zien voor andere gebruikers
-
-app.post('/show-shared', authenticate, (req, res) => {
-  const { username } = req.body;
-  if (!username) {
-    return res.status(400).json({ error: 'username missing in body' });
-  }
-
-  let projects;
-  try {
-    projects = readJSON(PROJECTS_FILE);
-  } catch (err) {
-    console.error('Error reading projects file:', err);
-    return res.status(500).json({ error: 'could not read projects file' });
-  }
-
-  const shared = projects.filter(p =>
-    Array.isArray(p.sharedWith) && p.sharedWith.includes(username)
-  );
-  res.json(shared);
-});
-
-
 
 // Voeg code toe
 app.post("/add-code", authenticate, (req, res) => {
@@ -763,6 +740,24 @@ app.post("/new-delete-project", authenticate, (req, res) => {
     res.json({ message: "Project gemarkeerd voor verwijdering" });
 });
 
+// Share-projecten met een andere gebruiker
+
+app.post("/get-shared-projects", authenticate, (req, res) => {
+    const { username } = req.body;
+    if (!username) {
+        return res.status(400).json({ error: "Geen gebruikersnaam opgegeven" });
+    }
+
+    let projects = readJSON(PROJECTS_FILE);
+    let sharedProjects = projects.filter(p => p.sharedWith?.includes(username));
+
+    if (sharedProjects.length === 0) {
+        return res.status(404).json({ error: "Geen gedeelde projecten gevonden" });
+    }
+
+    res.json(sharedProjects);
+});
+
 // Project bewerken
 app.post("/edit-project", authenticate, (req, res) => {
     let projects = readJSON(PROJECTS_FILE);
@@ -807,29 +802,6 @@ function checkAndDeleteExpiredProjects() {
 
 // Controleer elke 6 sec
 setInterval(checkAndDeleteExpiredProjects, 6 * 1000); // 6 * 1000 ms = 6 seconden
-
-app.get('/shared-projects', async (req, res) => {
-  try {
-    const username = req.query.username;  // Of uit req.body.username als je POST wilt
-
-    if (!username) {
-      return res.status(400).json({ error: 'username is required' });
-    }
-
-    const projects = await readJSON(projects_file);
-
-    // Filter projecten waar username in SharedWith zit
-    const sharedProjects = projects.filter(project => 
-      project.SharedWith && project.SharedWith.includes(username)
-    );
-
-    res.json(sharedProjects);
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 // 🚀 **Server starten**
 app.listen(PORT, () => {
