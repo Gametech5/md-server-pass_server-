@@ -758,6 +758,36 @@ app.post("/get-shared-projects", authenticate, (req, res) => {
     res.json(sharedProjects);
 });
 
+// Project delen met een andere gebruiker
+
+app.post("/share-project", authenticate, (req, res) => {
+    const { name, username } = req.body;
+    if (!name || !username) {
+        return res.status(400).json({ error: "Projectnaam en gebruikersnaam zijn verplicht!" });
+    }
+
+    let projects = readJSON(PROJECTS_FILE);
+    let project = projects.find(p => p.name === name && p.owner === req.user.username);
+
+    if (!project) {
+        return res.status(404).json({ error: "Project niet gevonden of geen rechten" });
+    }
+
+    if (!project.sharedWith) {
+        project.sharedWith = [];
+    }
+
+    if (project.sharedWith.includes(username)) {
+        return res.status(409).json({ error: "Project al gedeeld met deze gebruiker" });
+    }
+
+    project.sharedWith.push(username);
+    writeJSON(PROJECTS_FILE, projects);
+
+    res.json({ message: "Project gedeeld" });
+}
+);
+
 // Project bewerken
 app.post("/edit-project", authenticate, (req, res) => {
     let projects = readJSON(PROJECTS_FILE);
