@@ -769,8 +769,14 @@ app.post("/share-project", authenticate, (req, res) => {
     let projects = readJSON(PROJECTS_FILE);
     let project = projects.find(p => p.name === name && p.owner === req.user.username && p.UID === Number(UID));
 
+    let users = readJSON(USERS_FILE);
+    let user = users.find(u => u.username === username);
+    if (!user) {
+        return res.status(406).json({ error: "Gebruiker niet gevonden" }); // 406 = user not found
+    }
+
     if (!project) {
-        return res.status(404).json({ error: "Project niet gevonden of geen rechten" });
+        return res.status(404).json({ error: "Project niet gevonden of geen rechten" }); // 404 = project not found
     }
 
     if (!project.sharedWith) {

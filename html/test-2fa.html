@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>2FA Test Login</title>
+</head>
+<body>
+  <h2>Login</h2>
+
+  <div id="login-form">
+    <input type="text" id="username" placeholder="Gebruikersnaam" /><br />
+    <input type="password" id="password" placeholder="Wachtwoord" /><br />
+    <button onclick="login()">Login</button>
+  </div>
+
+  <div id="2fa-form" style="display:none;">
+    <p>Voer 2FA code in:</p>
+    <input type="text" id="twofa-code" placeholder="6-cijferige code" maxlength="6" /><br />
+    <button onclick="verify2FA()">Verifieer 2FA</button>
+  </div>
+
+  <div id="message"></div>
+
+  <script>
+    let currentUser = null;
+
+    async function login() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      const res = await fetch('http://localhost:3002/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      const data = await res.json();
+
+      if (data.message === '2FA required') {
+        currentUser = username;
+        document.getElementById('login-form').style.display = 'none';
+        document.getElementById('2fa-form').style.display = 'block';
+        document.getElementById('message').innerText = 'Voer je 2FA-code in.';
+      } else if (data.token) {
+        localStorage.setItem('token', data.token);
+        document.getElementById('message').innerText = 'Succesvol ingelogd zonder 2FA.';
+      } else {
+        document.getElementById('message').innerText = data.message || 'Fout bij inloggen';
+      }
+    }
+
+    async function verify2FA() {
+      const code = document.getElementById('twofa-code').value;
+
+      const res = await fetch('http://localhost:3002/2fa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: currentUser, token: code })
+      });
+
+      const data = await res.json();
+
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        document.getElementById('message').innerText = 'Succesvol ingelogd met 2FA!';
+        document.getElementById('2fa-form').style.display = 'none';
+      } else {
+        document.getElementById('message').innerText = data.message || 'Ongeldige 2FA-code.';
+      }
+    }
+  </script>
+</body>
+</html>
