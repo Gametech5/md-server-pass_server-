@@ -6,7 +6,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const cors = require('cors')
 const app = express();
-const PORT = 3000; // Kan veranderd worden voor lokaal of productie
+const PORT = 3002; // Kan veranderd worden voor lokaal of productie
 const SECRET_KEY = process.env.API_KEY; // 🔑 Zorg ervoor dat deze veilig blijft!
 const nodemailer = require('nodemailer');
 let codes = {}
@@ -838,6 +838,26 @@ app.post("/edit-project", authenticate, (req, res) => {
     res.json({ message: "Project bijgewerkt" });
 });
 
+// Return the amount of people project is shared with and the persons username
+app.post("/get-shared-with", authenticate, (req, res) => {
+    const { name, UID } = req.body;
+    if (!name || !UID) {
+        return res.status(400).json({ error: "Projectnaam en UID zijn verplicht!" });
+    }
+
+    let projects = readJSON(PROJECTS_FILE);
+    let project = projects.find(p => p.name === name && p.UID === Number(UID));
+
+    if (!project) {
+        return res.status(404).json({ error: "Project niet gevonden" });
+    }
+
+    if (!project.sharedWith || project.sharedWith.length === 0) {
+        return res.status(404).json({ error: "Geen gedeelde gebruikers gevonden" });
+    }
+
+    res.json({ sharedWith: project.sharedWith });
+});
 // Project verwijderen als timeOfExecution is geraakt
 
 function checkAndDeleteExpiredProjects() {
