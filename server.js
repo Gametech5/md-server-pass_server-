@@ -794,6 +794,31 @@ app.post("/share-project", authenticate, (req, res) => {
 }
 );
 
+// Projecten unshare met een andere gebruiker
+
+app.post("/unshare-project", authenticate, (req, res) => {
+    const { name, username, UID } = req.body;	
+    if (!name || !username || !UID) {
+        return res.status(400).json({ error: "Projectnaam en gebruikersnaam zijn verplicht!" });
+    }
+    const projects = readJSON(PROJECTS_FILE);
+    const project = projects.find(p => p.name === name && p.owner === req.user.username && p.UID === Number(UID));
+    if (!project) {
+        return res.status(404).json({ error: "Project niet gevonden of geen rechten" });
+    }
+    if (!project.sharedWith) {
+        return res.status(404).json({ error: "Project niet gedeeld met deze gebruiker" });
+    }
+    const userIndex = project.sharedWith.indexOf(username);
+    if (userIndex === -1) {
+        return res.status(404).json({ error: "Project niet gedeeld met deze gebruiker" });
+    }
+    project.sharedWith.splice(userIndex, 1);
+    writeJSON(PROJECTS_FILE, projects);
+    res.json({ message: "Project niet meer gedeeld" });
+}
+);
+
 // Project bewerken
 app.post("/edit-project", authenticate, (req, res) => {
     let projects = readJSON(PROJECTS_FILE);
