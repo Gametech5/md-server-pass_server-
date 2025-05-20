@@ -281,7 +281,7 @@ app.post("/send-rst-code", async (req, res) => {
   const code = Math.floor(Math.random() * 1000000);
   console.log(`✉️  Will send code ${code} to:`, email);
   const mailOptions = {
-    from: 'joris9210@gmail.com',
+    from: 'process.env.APP_MAIL',
     to: email,
     subject: 'Je resetcode',
     text: `Beste ${user.username},\n\nUw resetcode is: ${code}\n\nMet vriendelijke groet,\nMasterDev`
@@ -316,7 +316,7 @@ app.post("/send-code", async (req, res) => {
   const code = Math.floor(Math.random() * 1000000); 
   console.log(`✉️  Will send code ${code} to:`, email);
   const mailOptions = {
-    from: 'joris9210@gmail.com',
+    from: 'process.env.APP_MAIL',
     to: email,
     subject: 'Je verificatiecode',
     text: `Beste ${username},\n\nUw inlogcode is: ${code}\n\nMet vriendelijke groet,\nMasterdev`
