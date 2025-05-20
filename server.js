@@ -6,7 +6,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const cors = require('cors')
 const app = express();
-const PORT = 3000; // Kan veranderd worden voor lokaal of productie
+const PORT = 3002; // Kan veranderd worden voor lokaal of productie
 const SECRET_KEY = process.env.API_KEY; // 🔑 Zorg ervoor dat deze veilig blijft!
 const nodemailer = require('nodemailer');
 let codes = {}
@@ -15,18 +15,11 @@ let rst_codes = {}
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'joris9210@gmail.com', 
-    pass: 'nuem vimy tgwp dljm'
+    user: 'process.env.APP_MAIL', 
+    pass: 'process.env.APP_KEY'
   }
 });
 
-// E-mailgegevens
-const mailOptions = {
-  from: 'joris9210@gmail.com',
-  to: 'joris9210@gmail.com',
-  subject: 'Testbericht',
-  text: 'Hallo! Dit is een test-e-mail vanuit je Node.js-app.'
-};
 
 // Waar zijn alle bestanden?
 const USERS_FILE = "/media/pi/NieuwVolume/users.json";
@@ -108,14 +101,18 @@ function deleteImage(imageUrl) {
 app.use('/mnt/hdd/uploads', express.static(uploadDir));
 
 // Helperfunctie om JSON-bestanden te lezen
+
 const readJSON = (file) => {
     try {
-        return JSON.parse(fs.readFileSync(file, "utf8"));
+        const fullPath = path.resolve(file);
+        console.log(`📖 Lezen van JSON-bestand: ${fullPath}`);
+        return JSON.parse(fs.readFileSync(fullPath, "utf8"));
     } catch (err) {
         console.error(`❌ Fout bij lezen van ${file}:`, err);
         return [];
     }
 };
+
 
 // Helperfunctie om JSON-bestanden te schrijven
 const writeJSON = (file, data) => {
@@ -642,7 +639,10 @@ app.post("/add-code", authenticate, (req, res) => {
 
 // Projecten ophalen
 app.get("/projects", authenticate, (req, res) => {
+    
     let projects = readJSON(PROJECTS_FILE);
+    console.log('📖 Projecten geladen:', projects);
+
     let userProjects = projects.filter((p) => p.owner === req.user.username);
     res.json(userProjects);
 });
