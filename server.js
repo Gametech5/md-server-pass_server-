@@ -20,6 +20,40 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+// HTML-inhoud
+
+
+// Random test
+const mailOptions = {
+  from: process.env.APP_MAIL,
+  to: process.env.APP_MAIL,
+  subject: 'HTML E-mail voorbeeld',
+  html: `
+  <div style="
+    background-color: white;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    max-width: 500px;
+    margin: auto;
+    font-family: sans-serif;
+  ">
+    <h1 style="color: #007BFF;">Welkom bij onze service!</h1>
+    <p style="color: #555555;">
+      Dit is een voorbeeld van een HTML-e-mail met een afgeronde box, schaduw en opgemaakte tekst.
+    </p>
+  </div>
+`
+
+};
+
+transporter.sendMail(mailOptions, function(error, info){
+  if (error) {
+    console.log('Fout:', error);
+  } else {
+    console.log('E-mail verzonden: ' + info.response);
+  }
+});
 
 // Waar zijn alle bestanden?
 const USERS_FILE = "/media/pi/NieuwVolume/users.json";
@@ -280,12 +314,31 @@ app.post("/send-rst-code", async (req, res) => {
 
   const code = Math.floor(Math.random() * 1000000);
   console.log(`✉️  Will send code ${code} to:`, email);
+
   const mailOptions = {
-    from: process.env.APP_MAIL,
-    to: email,
-    subject: 'Je resetcode',
-    text: `Beste ${user.username},\n\nUw resetcode is: ${code}\n\nMet vriendelijke groet,\nMasterDev`
-  };
+  from: process.env.APP_MAIL,
+  to: email,
+  subject: 'Je resetcode',
+  html: `
+  <div style="
+    background-color: white;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    max-width: 500px;
+    margin: auto;
+    font-family: sans-serif;
+  ">
+    <h1 style="color: #007BFF;">Beste ${user.username}</h1>
+    <p style="color: #555555;">
+        Uw resetcode is: <strong>${code}</strong>
+    </p>
+    <p style="color: #555555; margin-top: 20px;">
+        Met vriendelijke groet,<br>
+        MasterDev
+    </p>
+  </div>
+`};
 
   try {
     await transporter.sendMail(mailOptions);
@@ -315,13 +368,31 @@ app.post("/send-code", async (req, res) => {
 
   const code = Math.floor(Math.random() * 1000000); 
   console.log(`✉️  Will send code ${code} to:`, email);
+
   const mailOptions = {
-    from: 
-    process.env.APP_MAIL,
+    from: process.env.APP_MAIL,
     to: email,
     subject: 'Je verificatiecode',
-    text: `Beste ${username},\n\nUw inlogcode is: ${code}\n\nMet vriendelijke groet,\nMasterdev`
-  };
+    html: `
+    <div style="
+      background-color: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      max-width: 500px;
+      margin: auto;
+      font-family: sans-serif;
+    ">
+      <h1 style="color: #007BFF;">Beste ${username}</h1>
+      <p style="color: #555555;">
+          Uw resetcode is: <strong>${code}</strong>
+      </p>
+      <p style="color: #555555; margin-top: 20px;">
+          Met vriendelijke groet,<br>
+          MasterDev
+      </p>
+    </div>
+`};
 
   try {
     await transporter.sendMail(mailOptions);
