@@ -63,6 +63,7 @@ const FEEDBACK_FILE = '/media/pi/NieuwVolume/feedback.json';
 
 const multer = require('multer');
 const path = require('path');
+const { use } = require('react');
 
 //Middleware
 app.use(bodyParser.json());
@@ -435,8 +436,16 @@ app.post("/sign", async (req, res) => {
         return res.status(409).json({ error: "Gebruiker bestaat al!" });
     }
 
+
+
     const hashedPassword = await bcrypt.hash(password, 10);
     let users = readJSON(USERS_FILE);
+    let projects = readJSON(PROJECTS_FILE);
+
+    let name, description, full_des, status, adver, files = "Blank";
+
+    projects.push({ name, full_des, status, owner: username, username, sharedWith: username, adver, delete: true, files: files || [], UID: Math.floor(Math.random() * 1000001)});
+    
 
     users.push({ 
         username, 
@@ -448,6 +457,8 @@ app.post("/sign", async (req, res) => {
         email,
         pfpUrl
     });
+
+    writeJSON(PROJECTS_FILE, projects)
 
     writeJSON(USERS_FILE, users);
     res.json({ message: "Account succesvol aangemaakt, log in!" });
