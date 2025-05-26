@@ -6,7 +6,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const cors = require('cors')
 const app = express();
-const PORT = 3000; // Kan veranderd worden voor lokaal of productie
+const PORT = 3000;// Kan veranderd worden voor lokaal of productie
 const SECRET_KEY = process.env.API_KEY; // 🔑 Zorg ervoor dat deze veilig blijft!
 const nodemailer = require('nodemailer');
 let codes = {}
@@ -17,41 +17,6 @@ const transporter = nodemailer.createTransport({
   auth: {
     user: process.env.APP_MAIL, 
     pass: process.env.APP_KEY
-  }
-});
-
-// HTML-inhoud
-
-
-// Random test
-const mailOptions = {
-  from: process.env.APP_MAIL,
-  to: process.env.APP_MAIL,
-  subject: 'HTML E-mail voorbeeld',
-  html: `
-  <div style="
-    background-color: white;
-    padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    max-width: 500px;
-    margin: auto;
-    font-family: sans-serif;
-  ">
-    <h1 style="color: #007BFF;">Welkom bij onze service!</h1>
-    <p style="color: #555555;">
-      Dit is een voorbeeld van een HTML-e-mail met een afgeronde box, schaduw en opgemaakte tekst.
-    </p>
-  </div>
-`
-
-};
-
-transporter.sendMail(mailOptions, function(error, info){
-  if (error) {
-    console.log('Fout:', error);
-  } else {
-    console.log('E-mail verzonden: ' + info.response);
   }
 });
 
@@ -440,12 +405,7 @@ app.post("/sign", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     let users = readJSON(USERS_FILE);
-    let projects = readJSON(PROJECTS_FILE);
-
-    let name, description, full_des, status, adver, files = "Blank";
-
-    projects.push({ name, full_des, status, owner: username, username, sharedWith: username, adver, delete: true, files: files || [], UID: Math.floor(Math.random() * 1000001)});
-    
+    let projects = readJSON(PROJECTS_FILE);   
 
     users.push({ 
         username, 
@@ -458,7 +418,6 @@ app.post("/sign", async (req, res) => {
         pfpUrl
     });
 
-    writeJSON(PROJECTS_FILE, projects)
 
     writeJSON(USERS_FILE, users);
     res.json({ message: "Account succesvol aangemaakt, log in!" });
@@ -902,6 +861,49 @@ app.post("/unshare-project", authenticate, (req, res) => {
 }
 );
 
+// Show projects that are deleted per user
+
+app.get("/deleted-projects", authenticate, (req, res) => {
+  const username = req.user.username;
+  console.log(username);
+  console.log(req.user.username);
+  if (!username) {
+    return res.status(400).json({ error: "Geen gebruikersnaam opgegeven" });
+  }
+  const projects = readJSON(PROJECTS_FILE);
+  const deletedProjects = projects.filter(p => p.delete === true && p.owner === username);
+  if (deletedProjects.length === 0) {
+    return res.status(404).json({ error: "Geen verwijderde projecten gevonden" });
+  }
+  res.json(deletedProjects);
+}
+);
+
+// Projecten terug brengen van delete: true
+app.post("/restore-project", authenticate, (req, res) => {
+    console.log("ABOMB");
+    const { name, UID } = req.body;
+    if (!name || !UID) {
+        console.log("ABOMB2");
+        return res.status(400).json({ error: "Projectnaam en UID zijn verplicht!" });
+    }
+
+    let projects = readJSON(PROJECTS_FILE);
+    let project = projects.find(p => p.name === name && p.owner === req.user.username && p.UID === Number(UID));
+    console.log("ABOMB3");
+    if (!project || !project.delete) {
+        console.log("ABOMB4");
+        return res.status(404).json({ error: "Project niet gevonden of niet verwijderd" });
+    }
+    console.log("ABOMB5");
+    project.delete = false; // Zet delete terug naar false
+    project.timeOfExecution = null; // Verwijder de timeOfExecution
+    console.log("ABOMB6");
+    writeJSON(PROJECTS_FILE, projects);
+    res.json({ message: "Project hersteld" });
+}
+);
+
 // Project bewerken
 app.post("/edit-project", authenticate, (req, res) => {
     let projects = readJSON(PROJECTS_FILE);
@@ -957,6 +959,22 @@ function checkAndDeleteExpiredProjects() {
         }
         return true;
     });
+
+    if (projects.files && Array.isArray(projectToDelete.files)) {
+        project.files.forEach(file => {
+            const filePath = file;
+
+            fs.unlink(filePath, (err) => {
+                if (err && err.code !== 'ENOENT') {
+                    console.error(`Fout bij verwijderen bestand ${file}:`, err);
+                } else if (err && err.code === 'ENOENT') {
+                    console.warn(`Bestand niet gevonden: ${file}, maar verdergaan.`);
+                } else {
+                    console.log(`Bestand ${file} succesvol verwijderd.`);
+                }
+            });
+        });
+    }
 
     if (updatedProjects.length !== projects.length) {
         writeJSON(PROJECTS_FILE, updatedProjects);
