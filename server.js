@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require("express");
 const fs = require("fs");
 const bodyParser = require("body-parser");
+const socketio = require('socket.io');
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const cors = require('cors')
@@ -21,10 +22,10 @@ const transporter = nodemailer.createTransport({
 });
 
 // Waar zijn alle bestanden?
-const USERS_FILE = "/media/pi/NieuwVolume/users.json";
-const CODE_FILE= "/media/pi/NieuwVolume/code.json";
-const PROJECTS_FILE = "/media/pi/NieuwVolume/projects.json";
-const FEEDBACK_FILE = '/media/pi/NieuwVolume/feedback.json';
+const USERS_FILE = "users.json";
+const CODE_FILE= "code.json";
+const PROJECTS_FILE = "projects.json";
+const FEEDBACK_FILE = 'feedback.json';
 
 const multer = require('multer');
 const path = require('path');
@@ -35,7 +36,7 @@ app.use(bodyParser.json());
 app.use(cors());
 
 // Map waar geüploade bestanden worden opgeslagen
-const uploadDir = '/media/pi/NieuwVolume/uploads';
+const uploadDir = 'uploads/';
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
 // Multer configuratie
@@ -50,7 +51,6 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage: storage });
-
 
 app.post('/upload', upload.array('image', 10), (req, res) => {
   if (!req.files) return res.status(400).json({ error: 'Geen bestanden ontvangen' });
