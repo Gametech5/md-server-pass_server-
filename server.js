@@ -1,17 +1,29 @@
 require('dotenv').config();
 const express = require("express");
 const fs = require("fs");
+const { execSync } = require('child_process');
+const os = require('os');
 const bodyParser = require("body-parser");
-const socketio = require('socket.io');
+const cors = require('cors');
+const http = require('http');
+const { Server } = require('socket.io');
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
-const cors = require('cors')
-const app = express();
-const PORT = 3000;// Kan veranderd worden voor lokaal of productie
-const SECRET_KEY = process.env.API_KEY; // 🔑 Zorg ervoor dat deze veilig blijft!
 const nodemailer = require('nodemailer');
-let codes = {}
-let rst_codes = {}
+const app = express(); // 👈 Moet vóór server komen
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*', // Pas dit aan als je alleen een specifieke frontend toestaat
+    methods: ['GET', 'POST']
+  }
+});
+
+const PORT = 3000;
+const SECRET_KEY = process.env.API_KEY;
+let codes = {};
+let rst_codes = {};
+const clients = {};
 // Transporter instellen (hier met Gmail)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -68,7 +80,6 @@ function readFeedback() {
 function writeFeedback(data) {
   fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(data, null, 2));
 }
-
 
 //  Feedback toevoegen
 app.post('/submit-feedback', (req, res) => {
@@ -135,7 +146,6 @@ const userExists = (username) => {
 app.get('/health-check', (req, res) => {
     res.status(200).send('Server is up!');
 });
-
 
 // Controleer of gebruikersnaam al bestaat (real-time validatie)
 app.post("/check-username", (req, res) => {
@@ -233,6 +243,7 @@ const newPassword = await bcrypt.hash(new_password,10);
 user.password = newPassword;
 
 writeJSON(USERS_FILE, users);
+
 
 res.json({ success: true, message: "YAYYYY" });
 
@@ -351,7 +362,7 @@ app.post("/send-code", async (req, res) => {
     ">
       <h1 style="color: #007BFF;">Beste ${username}</h1>
       <p style="color: #555555;">
-          Uw resetcode is: <strong>${code}</strong>
+          Uw verficatiecode is: <strong>${code}</strong>
       </p>
       <p style="color: #555555; margin-top: 20px;">
           Met vriendelijke groet,<br>
@@ -990,3 +1001,20 @@ app.listen(PORT, () => {
     console.log(`🚀 Server draait op poort ${PORT}`);
     console.log(Math.floor(Math.random() * 10001));
 });
+
+
+// Logging
+setInterval(() => {
+  try {
+    const tempRaw = execSync('vcgencmd measure_temp').toString();
+    const temperature = tempRaw.match(/temp=([\d.]+)'C/)[1];
+    const cpuLoad = os.loadavg()[0].toFixed(2);
+    const now = new Date().toISOString();
+    const logLine = `${now} | CPU temp: ${temperature}°C | CPU load: ${cpuLoad}\n`;
+
+    fs.appendFileSync('server_log.txt', logLine);
+    console.log(logLine.trim());
+  } catch (err) {
+    console.error('Fout bij loggen:', err);
+  }
+}, 10000);
