@@ -1,3 +1,5 @@
+
+const ftp = require("basic-ftp");
 require('dotenv').config();
 const express = require("express");
 const fs = require("fs");
@@ -19,7 +21,7 @@ const io = new Server(server, {
   }
 });
 
-const PORT = 3000;
+const PORT = 3002;
 const SECRET_KEY = process.env.API_KEY;
 let codes = {};
 let rst_codes = {};
@@ -77,6 +79,13 @@ function readFeedback() {
   }
 }
 
+const FTP_CONFIG = {
+    host: "192.168.1.111",
+    user: "admin",
+    password: "admin",
+    // secure: false  // voeg toe als je geen FTPS gebruikt
+};
+
 function writeFeedback(data) {
   fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(data, null, 2));
 }
@@ -112,28 +121,48 @@ function deleteImage(imageUrl) {
 app.use('/mnt/hdd/uploads', express.static(uploadDir));
 
 // Helperfunctie om JSON-bestanden te lezen
+async function readJSON(remoteFile) {
+    const client = new ftp.Client();
+    client.ftp.verbose = false;
 
-const readJSON = (file) => {
     try {
-        const fullPath = path.resolve(file);
-        console.log(`📖 Lezen van JSON-bestand: ${fullPath}`);
-        return JSON.parse(fs.readFileSync(fullPath, "utf8"));
+        await client.access(FTP_CONFIG);
+        const writableStream = new require("stream").Writable();
+        let data = "";
+
+        writableStream._write = (chunk, encoding, done) => {
+            data += chunk.toString();
+            done();
+        };
+
+        await client.downloadTo(writableStream, remoteFile);
+        return JSON.parse(data);
     } catch (err) {
-        console.error(`❌ Fout bij lezen van ${file}:`, err);
+        console.error("Fout bij FTP lezen:", err);
         return [];
+    } finally {
+        client.close();
     }
-};
+}
 
+async function writeJSON(remoteFile, data) {
+    const client = new ftp.Client();
+    client.ftp.verbose = false;
 
-// Helperfunctie om JSON-bestanden te schrijven
-const writeJSON = (file, data) => {
     try {
-        fs.writeFileSync(file, JSON.stringify(data, null, 2));
-        console.log(`✅ Gegevens opgeslagen in ${file}`);
+        await client.access(FTP_CONFIG);
+        const readableStream = require("stream").Readable.from(
+            JSON.stringify(data, null, 2)
+        );
+        await client.uploadFrom(readableStream, remoteFile);
+        console.log(`✅ Gegevens opgeslagen in ${remoteFile} via FTP`);
     } catch (err) {
-        console.error(`🚨 Schrijffout in ${file}:`, err);
+        console.error("Fout bij FTP schrijven:", err);
+    } finally {
+        client.close();
     }
-};
+}
+
 
 // Check of gebruiker al bestaat
 const userExists = (username) => {
