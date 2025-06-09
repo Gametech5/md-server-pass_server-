@@ -1,6 +1,5 @@
-
-const ftp = require("basic-ftp");
 require('dotenv').config();
+const { ftpDownload, ftpUpload } = require('./ftpHelper');
 const express = require("express");
 const fs = require("fs");
 const { execSync } = require('child_process');
@@ -21,7 +20,7 @@ const io = new Server(server, {
   }
 });
 
-const PORT = 3002;
+const PORT = 3000;
 const SECRET_KEY = process.env.API_KEY;
 let codes = {};
 let rst_codes = {};
@@ -79,13 +78,6 @@ function readFeedback() {
   }
 }
 
-const FTP_CONFIG = {
-    host: "192.168.1.111",
-    user: "admin",
-    password: "admin",
-    // secure: false  // voeg toe als je geen FTPS gebruikt
-};
-
 function writeFeedback(data) {
   fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(data, null, 2));
 }
@@ -120,48 +112,30 @@ function deleteImage(imageUrl) {
 // Statische bestanden serveren
 app.use('/mnt/hdd/uploads', express.static(uploadDir));
 
-// Helperfunctie om JSON-bestanden te lezen
-async function readJSON(remoteFile) {
-    const client = new ftp.Client();
-    client.ftp.verbose = false;
+const tmpDir = os.tmpdir();
 
+const readJSON = async (ftpFilePath) => {
     try {
-        await client.access(FTP_CONFIG);
-        const writableStream = new require("stream").Writable();
-        let data = "";
-
-        writableStream._write = (chunk, encoding, done) => {
-            data += chunk.toString();
-            done();
-        };
-
-        await client.downloadTo(writableStream, remoteFile);
-        return JSON.parse(data);
+        const localTmpFile = path.join(tmpDir, path.basename(ftpFilePath));
+        await ftpDownload(ftpFilePath, localTmpFile);
+        const content = fs.readFileSync(localTmpFile, "utf8");
+        return JSON.parse(content);
     } catch (err) {
-        console.error("Fout bij FTP lezen:", err);
+        console.error(`❌ Fout bij lezen van ${ftpFilePath}:`, err);
         return [];
-    } finally {
-        client.close();
     }
-}
+};
 
-async function writeJSON(remoteFile, data) {
-    const client = new ftp.Client();
-    client.ftp.verbose = false;
-
+const writeJSON = async (ftpFilePath, data) => {
     try {
-        await client.access(FTP_CONFIG);
-        const readableStream = require("stream").Readable.from(
-            JSON.stringify(data, null, 2)
-        );
-        await client.uploadFrom(readableStream, remoteFile);
-        console.log(`✅ Gegevens opgeslagen in ${remoteFile} via FTP`);
+        const localTmpFile = path.join(tmpDir, path.basename(ftpFilePath));
+        fs.writeFileSync(localTmpFile, JSON.stringify(data, null, 2));
+        await ftpUpload(localTmpFile, ftpFilePath);
+        console.log(`✅ Gegevens opgeslagen in ${ftpFilePath}`);
     } catch (err) {
-        console.error("Fout bij FTP schrijven:", err);
-    } finally {
-        client.close();
+        console.error(`🚨 Schrijffout in ${ftpFilePath}:`, err);
     }
-}
+};
 
 
 // Check of gebruiker al bestaat
@@ -444,8 +418,7 @@ app.post("/sign", async (req, res) => {
 
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    let users = readJSON(USERS_FILE);
-    let projects = readJSON(PROJECTS_FILE);   
+    let users = await readJSON(USERS_FILE);  
 
     users.push({ 
         username, 
@@ -459,14 +432,21 @@ app.post("/sign", async (req, res) => {
     });
 
 
-    writeJSON(USERS_FILE, users);
+    await writeJSON(USERS_FILE, users);
     res.json({ message: "Account succesvol aangemaakt, log in!" });
 });
 
 // Inloggen en aanmaak van JWT-token
 app.post("/login", async (req, res) => {
+    
     const { username, password } = req.body;
-    let users = readJSON(USERS_FILE);
+    let users = await readJSON(USERS_FILE);
+
+    if (!Array.isArray(users)) {
+        console.error("users is geen array:", users);
+        return res.status(500).json({ error: "Serverfout: gebruikersbestand ongeldig." });
+    }
+
 
     const user = users.find((u) => u.username === username);
     if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -551,8 +531,8 @@ app.put("/edit-user", authenticate, async (req, res) => {
 
 
 // Verwijder de gebruiker
-app.post("/delete-user", authenticate, (req, res) => {
-    let users = readJSON(USERS_FILE);  
+app.post("/delete-user", authenticate, async (req, res) => {
+    let users = await readJSON(USERS_FILE);  
     const username = req.user.username; // Get logged-in user
 
     // Filter out the current user
@@ -562,7 +542,7 @@ app.post("/delete-user", authenticate, (req, res) => {
         return res.status(404).json({ error: "User not found" });
     }
 
-    writeJSON(USERS_FILE, filteredUsers);
+    await writeJSON(USERS_FILE, filteredUsers);
     res.json({ message: "User deleted" });
 });
 
@@ -720,13 +700,16 @@ app.post("/add-code", authenticate, (req, res) => {
 });
 
 // Projecten ophalen
-app.get("/projects", authenticate, (req, res) => {
-    
-    let projects = readJSON(PROJECTS_FILE);
-    console.log('📖 Projecten geladen:', projects);
+app.get("/projects", authenticate, async (req, res) => {
+    try {
+        let projects = await readJSON(PROJECTS_FILE);
 
-    let userProjects = projects.filter((p) => p.owner === req.user.username);
-    res.json(userProjects);
+        let userProjects = projects.filter((p) => p.owner === req.user.username);
+        res.json(userProjects);
+    } catch (err) {
+        console.error("❌ Fout bij laden van projecten:", err);
+        res.status(500).json({ error: "Serverfout bij ophalen van projecten." });
+    }
 });
 
 // Projecten ophalen van een andere gebruiker voor admin's
@@ -751,8 +734,8 @@ app.get("/project/:uid", authenticate, (req, res) => {
 });
 
 // Project verwijderen
-app.post("/delete-project", authenticate, (req, res) => {
-    let projects = readJSON(PROJECTS_FILE);
+app.post("/delete-project", authenticate, async (req, res) => {
+    let projects = await readJSON(PROJECTS_FILE);
     const { name, UID } = req.body;
 
     const projectToDelete = projects.find(
@@ -784,7 +767,7 @@ app.post("/delete-project", authenticate, (req, res) => {
         (p) => !(p.name === name && p.owner === req.user.username && p.UID === Number(UID))
     );
 
-    writeJSON(PROJECTS_FILE, filteredProjects);
+    await writeJSON(PROJECTS_FILE, filteredProjects);
 
     res.json({ message: "Project verwijderd" });
 });
@@ -824,93 +807,115 @@ app.post("/new-delete-project", authenticate, (req, res) => {
 
 // Share-projecten met een andere gebruiker
 
-app.post("/get-shared-projects", authenticate, (req, res) => {
+app.post("/get-shared-projects", authenticate, async (req, res) => {
     const { username } = req.body;
     if (!username) {
         return res.status(400).json({ error: "Geen gebruikersnaam opgegeven" });
     }
 
-    let projects = readJSON(PROJECTS_FILE);
-    let sharedProjects = projects.filter(p => p.sharedWith?.includes(username));
+    try {
+        const projects = await readJSON(PROJECTS_FILE);
 
-    if (sharedProjects.length === 0) {
-        return res.status(404).json({ error: "Geen gedeelde projecten gevonden" });
+        if (!Array.isArray(projects)) {
+            return res.status(500).json({ error: "Projectbestand is ongeldig" });
+        }
+
+        const sharedProjects = projects.filter(p => p.sharedWith?.includes(username));
+
+        if (sharedProjects.length === 0) {
+            return res.status(404).json({ error: "Geen gedeelde projecten gevonden" });
+        }
+
+        res.json(sharedProjects);
+    } catch (err) {
+        console.error("❌ Fout bij ophalen gedeelde projecten:", err);
+        res.status(500).json({ error: "Interne serverfout" });
     }
-
-    res.json(sharedProjects);
 });
 
 // Project delen met een andere gebruiker
 
-app.post("/share-project", authenticate, (req, res) => {
+app.post("/share-project", authenticate, async (req, res) => {
     const { name, username, UID } = req.body;
     if (!name || !username || !UID) {
         return res.status(400).json({ error: "Projectnaam en gebruikersnaam zijn verplicht!" });
     }
 
-    let projects = readJSON(PROJECTS_FILE);
-    let project = projects.find(p => p.name === name && p.owner === req.user.username && p.UID === Number(UID));
+    try {
+        const projects = await readJSON(PROJECTS_FILE);
+        const project = projects.find(p => p.name === name && p.owner === req.user.username && p.UID === Number(UID));
 
-    let users = readJSON(USERS_FILE);
-    let user = users.find(u => u.username === username);
-    if (!user) {
-        return res.status(406).json({ error: "Gebruiker niet gevonden" }); // 406 = user not found
+        const users = await readJSON(USERS_FILE);
+        const user = users.find(u => u.username === username);
+
+        if (!user) {
+            return res.status(406).json({ error: "Gebruiker niet gevonden" });
+        }
+
+        if (!project) {
+            return res.status(404).json({ error: "Project niet gevonden of geen rechten" });
+        }
+
+        if (!Array.isArray(project.sharedWith)) {
+            project.sharedWith = [];
+        }
+
+        if (project.sharedWith.includes(username)) {
+            return res.status(409).json({ error: "Project al gedeeld met deze gebruiker" });
+        }
+
+        project.sharedWith.push(username);
+        await writeJSON(PROJECTS_FILE, projects);
+
+        res.json({ message: "Project gedeeld" });
+    } catch (err) {
+        console.error("❌ Fout bij delen van project:", err);
+        res.status(500).json({ error: "Interne serverfout" });
     }
+});
 
-    if (!project) {
-        return res.status(404).json({ error: "Project niet gevonden of geen rechten" }); // 404 = project not found
-    }
-
-    if (!project.sharedWith) {
-        project.sharedWith = [];
-    }
-
-    if (project.sharedWith.includes(username)) {
-        return res.status(409).json({ error: "Project al gedeeld met deze gebruiker" });
-    }
-
-    project.sharedWith.push(username);
-    writeJSON(PROJECTS_FILE, projects);
-
-    res.json({ message: "Project gedeeld" });
-}
-);
 
 // Projecten unshare met een andere gebruiker
 
-app.post("/unshare-project", authenticate, (req, res) => {
+app.post("/unshare-project", authenticate, async (req, res) => {
     const { name, username, UID } = req.body;	
     if (!name || !username || !UID) {
         return res.status(400).json({ error: "Projectnaam en gebruikersnaam zijn verplicht!" });
     }
-    const projects = readJSON(PROJECTS_FILE);
-    const project = projects.find(p => p.name === name && p.owner === req.user.username && p.UID === Number(UID));
-    if (!project) {
-        return res.status(404).json({ error: "Project niet gevonden of geen rechten" });
+    try {
+        const projects = await readJSON(PROJECTS_FILE);
+        const project = projects.find(p => p.name === name && p.owner === req.user.username && p.UID === Number(UID));
+        if (!project) {
+            return res.status(404).json({ error: "Project niet gevonden of geen rechten" });
+        }
+        if (!project.sharedWith) {
+            return res.status(404).json({ error: "Project niet gedeeld met deze gebruiker" });
+        }
+        const userIndex = project.sharedWith.indexOf(username);
+        if (userIndex === -1) {
+            return res.status(404).json({ error: "Project niet gedeeld met deze gebruiker" });
+        }
+        project.sharedWith.splice(userIndex, 1);
+        await writeJSON(PROJECTS_FILE, projects);
+        res.json({ message: "Project niet meer gedeeld" });
     }
-    if (!project.sharedWith) {
-        return res.status(404).json({ error: "Project niet gedeeld met deze gebruiker" });
+    catch (err) {
+        console.error("❌ Fout bij unshare van project:", err);
+        res.status(500).json({ error: "Interne serverfout" });
     }
-    const userIndex = project.sharedWith.indexOf(username);
-    if (userIndex === -1) {
-        return res.status(404).json({ error: "Project niet gedeeld met deze gebruiker" });
-    }
-    project.sharedWith.splice(userIndex, 1);
-    writeJSON(PROJECTS_FILE, projects);
-    res.json({ message: "Project niet meer gedeeld" });
 }
 );
 
 // Show projects that are deleted per user
 
-app.get("/deleted-projects", authenticate, (req, res) => {
+app.get("/deleted-projects", authenticate, async (req, res) => {
   const username = req.user.username;
   console.log(username);
   console.log(req.user.username);
   if (!username) {
     return res.status(400).json({ error: "Geen gebruikersnaam opgegeven" });
   }
-  const projects = readJSON(PROJECTS_FILE);
+  const projects = await readJSON(PROJECTS_FILE);
   const deletedProjects = projects.filter(p => p.delete === true && p.owner === username);
   if (deletedProjects.length === 0) {
     return res.status(404).json({ error: "Geen verwijderde projecten gevonden" });
@@ -920,7 +925,7 @@ app.get("/deleted-projects", authenticate, (req, res) => {
 );
 
 // Projecten terug brengen van delete: true
-app.post("/restore-project", authenticate, (req, res) => {
+app.post("/restore-project", authenticate, async (req, res) => {
     console.log("ABOMB");
     const { name, UID } = req.body;
     if (!name || !UID) {
@@ -928,7 +933,7 @@ app.post("/restore-project", authenticate, (req, res) => {
         return res.status(400).json({ error: "Projectnaam en UID zijn verplicht!" });
     }
 
-    let projects = readJSON(PROJECTS_FILE);
+    let projects = await readJSON(PROJECTS_FILE);
     let project = projects.find(p => p.name === name && p.owner === req.user.username && p.UID === Number(UID));
     console.log("ABOMB3");
     if (!project || !project.delete) {
@@ -939,7 +944,7 @@ app.post("/restore-project", authenticate, (req, res) => {
     project.delete = false; // Zet delete terug naar false
     project.timeOfExecution = null; // Verwijder de timeOfExecution
     console.log("ABOMB6");
-    writeJSON(PROJECTS_FILE, projects);
+    await writeJSON(PROJECTS_FILE, projects);
     res.json({ message: "Project hersteld" });
 }
 );
@@ -985,42 +990,53 @@ app.post("/get-shared-with", authenticate, (req, res) => {
 });
 // Project verwijderen als timeOfExecution is geraakt
 
-function checkAndDeleteExpiredProjects() {
-    let projects = readJSON(PROJECTS_FILE);
-    const now = new Date();
+async function checkAndDeleteExpiredProjects() {
+    try {
+        const projects = await readJSON(PROJECTS_FILE);
+        const now = new Date();
 
-    const updatedProjects = projects.filter((project) => {
-        if (project.timeOfExecution) {
-            const execTime = new Date(project.timeOfExecution);
-            if (now >= execTime) {
-                console.log(`Verwijdert project: ${project.name} van ${project.owner}`);
-                return false;
+        const projectsToKeep = [];
+        const projectsToDelete = [];
+
+        // Splits projecten in bewaren en verwijderen
+        for (const project of projects) {
+            if (project.timeOfExecution) {
+                const execTime = new Date(project.timeOfExecution);
+                if (now >= execTime) {
+                    console.log(`Verwijdert project: ${project.name} van ${project.owner}`);
+                    projectsToDelete.push(project);
+                    continue; // niet toevoegen aan keep lijst
+                }
+            }
+            projectsToKeep.push(project);
+        }
+
+        // Bestanden van te verwijderen projecten verwijderen
+        for (const project of projectsToDelete) {
+            if (project.files && Array.isArray(project.files)) {
+                for (const filePath of project.files) {
+                    fs.unlink(filePath, (err) => {
+                        if (err && err.code !== 'ENOENT') {
+                            console.error(`Fout bij verwijderen bestand ${filePath}:`, err);
+                        } else if (err && err.code === 'ENOENT') {
+                            console.warn(`Bestand niet gevonden: ${filePath}, maar verdergaan.`);
+                        } else {
+                            console.log(`Bestand ${filePath} succesvol verwijderd.`);
+                        }
+                    });
+                }
             }
         }
-        return true;
-    });
 
-    if (projects.files && Array.isArray(projectToDelete.files)) {
-        project.files.forEach(file => {
-            const filePath = file;
-
-            fs.unlink(filePath, (err) => {
-                if (err && err.code !== 'ENOENT') {
-                    console.error(`Fout bij verwijderen bestand ${file}:`, err);
-                } else if (err && err.code === 'ENOENT') {
-                    console.warn(`Bestand niet gevonden: ${file}, maar verdergaan.`);
-                } else {
-                    console.log(`Bestand ${file} succesvol verwijderd.`);
-                }
-            });
-        });
-    }
-
-    if (updatedProjects.length !== projects.length) {
-        writeJSON(PROJECTS_FILE, updatedProjects);
-        console.log("Verlopen projecten verwijderd.");
+        if (projectsToKeep.length !== projects.length) {
+            writeJSON(PROJECTS_FILE, projectsToKeep);
+            console.log("Verlopen projecten verwijderd.");
+        }
+    } catch (err) {
+        console.error("Fout in checkAndDeleteExpiredProjects:", err);
     }
 }
+
 
 // Controleer elke 6 sec
 setInterval(checkAndDeleteExpiredProjects, 6 * 1000); // 6 * 1000 ms = 6 seconden

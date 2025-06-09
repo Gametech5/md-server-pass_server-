@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raspberry Pi System Monitor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding-top: 20px;
+        }
+        .card {
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+            height: 100%;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .card-header {
+            border-radius: 10px 10px 0 0 !important;
+            font-weight: bold;
+        }
+        .progress {
+            height: 25px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .progress-bar {
+            font-weight: bold;
+        }
+        .temp-display {
+            font-size: 2rem;
+            font-weight: bold;
+            text-align: center;
+            margin: 10px 0;
+        }
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
+            margin-top: 15px;
+        }
+        .info-text {
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+        .system-info {
+            background-color: #f1f8ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        @media (max-width: 768px) {
+            .temp-display {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row mb-4">
+            <div class="col-12 text-center">
+                <h1 class="display-4">Raspberry Pi System Monitor</h1>
+                <p class="lead text-muted">Real-time performance tracking</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- CPU Card -->
+            <div class="col-md-6 col-lg-3">
+                <div class="card border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">CPU Status</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="temp-display text-primary" id="cpu-temp">--°C</div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Usage:</span>
+                                <span id="cpu-usage-text">0%</span>
+                            </div>
+                            <div class="progress">
+                                <div id="cpu-usage-bar" class="progress-bar progress-bar-striped bg-primary" 
+                                    role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="cpuChart"></canvas>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-6">
+                                <div class="info-text">Cores: <span id="cpu-cores">--</span></div>
+                            </div>
+                            <div class="col-6">
+                                <div class="info-text">Freq: <span id="cpu-freq">--</span> MHz</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GPU Card -->
+            <div class="col-md-6 col-lg-3">
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="card-title mb-0">GPU Status</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="temp-display text-success" id="gpu-temp">--°C</div>
+                        <div class="chart-container">
+                            <canvas id="gpuChart"></canvas>
+                        </div>
+                        <div class="system-info mt-3">
+                            <div class="info-text">Memory: <span id="gpu-mem">--</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Memory Card -->
+            <div class="col-md-6 col-lg-3">
+                <div class="card border-info">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="card-title mb-0">Memory</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Usage:</span>
+                                <span id="mem-usage-text">0%</span>
+                            </div>
+                            <div class="progress">
+                                <div id="mem-usage-bar" class="progress-bar progress-bar-striped bg-info" 
+                                    role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div class="info-text text-center" id="mem-text">0 GB / 0 GB</div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="memChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Card -->
+            <div class="col-md-6 col-lg-3">
+                <div class="card border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="card-title mb-0">System Info</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Disk Usage:</span>
+                                <span id="disk-usage-text">0%</span>
+                            </div>
+                            <div class="progress">
+                                <div id="disk-usage-bar" class="progress-bar progress-bar-striped bg-warning" 
+                                    role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div class="info-text text-center" id="disk-text">0 GB / 0 GB</div>
+                        </div>
+                        <div class="system-info">
+                            <div class="info-text"><strong>Uptime:</strong> <span id="uptime">--</span></div>
+                            <div class="info-text"><strong>Last Update:</strong> <span id="timestamp">--:--:--</span></div>
+                            <div class="info-text"><strong>Hostname:</strong> <span id="hostname">--</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize charts with better configuration
+        const charts = {
+            cpu: createChart('cpuChart', 'CPU Usage %', '#0d6efd', 100),
+            gpu: createChart('gpuChart', 'GPU Temp °C', '#198754'),
+            mem: createChart('memChart', 'Memory Usage %', '#0dcaf0', 100)
+        };
+
+        function createChart(id, label, color, max = null) {
+            const ctx = document.getElementById(id).getContext('2d');
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: label,
+                        data: [],
+                        borderColor: color,
+                        backgroundColor: color + '20',
+                        borderWidth: 2,
+                        tension: 0.2,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 0
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: max,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                display: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+
+        // State management
+        let isUpdating = false;
+        let updateInterval = 1000;
+        let lastUpdateTime = 0;
+        let errorCount = 0;
+        const maxErrorCount = 5;
+
+        // Main update function
+        async function updateData() {
+            if (isUpdating) return;
+            
+            isUpdating = true;
+            const startTime = performance.now();
+            
+            try {
+                const response = await fetch(`/data?t=${Date.now()}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                errorCount = 0; // Reset error counter on success
+                
+                // Update CPU Info
+                updateCpuInfo(data.cpu);
+                
+                // Update GPU Info
+                updateGpuInfo(data.gpu);
+                
+                // Update Memory Info
+                updateMemoryInfo(data.system.memory);
+                
+                // Update Disk Info
+                updateDiskInfo(data.system.disk);
+                
+                // Update System Info
+                updateSystemInfo(data);
+                
+                // Update Charts
+                updateCharts(data);
+                
+            } catch (error) {
+                console.error('Update failed:', error);
+                errorCount++;
+                
+                if (errorCount >= maxErrorCount) {
+                    console.warn('Too many errors, increasing update interval');
+                    updateInterval = Math.min(updateInterval * 2, 10000); // Max 10 seconds
+                    errorCount = 0;
+                }
+            } finally {
+                isUpdating = false;
+                const elapsed = performance.now() - startTime;
+                const nextUpdate = Math.max(updateInterval - elapsed, 100); // Never less than 100ms
+                setTimeout(updateData, nextUpdate);
+            }
+        }
+
+        function updateCpuInfo(cpuData) {
+            document.getElementById('cpu-temp').textContent = 
+                cpuData.temp ? `${cpuData.temp.toFixed(1)}°C` : 'N/A';
+            
+            document.getElementById('cpu-usage-bar').style.width = 
+                `${cpuData.usage}%`;
+            document.getElementById('cpu-usage-bar').textContent = 
+                `${cpuData.usage.toFixed(1)}%`;
+            document.getElementById('cpu-usage-text').textContent = 
+                `${cpuData.usage.toFixed(1)}%`;
+            
+            document.getElementById('cpu-cores').textContent = 
+                cpuData.cores || '--';
+            document.getElementById('cpu-freq').textContent = 
+                cpuData.freq ? Math.round(cpuData.freq) : '--';
+        }
+
+        function updateGpuInfo(gpuData) {
+            if (!gpuData) return;
+            
+            document.getElementById('gpu-temp').textContent = 
+                `${gpuData.temp.toFixed(1)}°C`;
+            
+            if (gpuData.mem_used && gpuData.mem_total) {
+                document.getElementById('gpu-mem').textContent = 
+                    `${(gpuData.mem_used / 1024).toFixed(1)} / ${(gpuData.mem_total / 1024).toFixed(1)} GB`;
+            }
+        }
+
+        function updateMemoryInfo(memData) {
+            document.getElementById('mem-usage-bar').style.width = 
+                `${memData.percent}%`;
+            document.getElementById('mem-usage-bar').textContent = 
+                `${memData.percent.toFixed(1)}%`;
+            document.getElementById('mem-usage-text').textContent = 
+                `${memData.percent.toFixed(1)}%`;
+            document.getElementById('mem-text').textContent = 
+                `${memData.used.toFixed(1)} GB / ${memData.total.toFixed(1)} GB`;
+        }
+
+        function updateDiskInfo(diskData) {
+            document.getElementById('disk-usage-bar').style.width = 
+                `${diskData.percent}%`;
+            document.getElementById('disk-usage-bar').textContent = 
+                `${diskData.percent.toFixed(1)}%`;
+            document.getElementById('disk-usage-text').textContent = 
+                `${diskData.percent.toFixed(1)}%`;
+            document.getElementById('disk-text').textContent = 
+                `${diskData.used.toFixed(1)} GB / ${diskData.total.toFixed(1)} GB`;
+        }
+
+        function updateSystemInfo(data) {
+            document.getElementById('uptime').textContent = 
+                formatUptime(data.system.uptime);
+            document.getElementById('timestamp').textContent = 
+                data.timestamp;
+            document.getElementById('hostname').textContent = 
+                window.location.hostname;
+        }
+
+        function updateCharts(data) {
+            const now = new Date();
+            const timeLabel = now.toLocaleTimeString();
+            
+            // CPU Chart
+            updateChartData(charts.cpu, timeLabel, data.cpu.usage);
+            
+            // GPU Chart
+            if (data.gpu) {
+                updateChartData(charts.gpu, timeLabel, data.gpu.temp);
+            }
+            
+            // Memory Chart
+            updateChartData(charts.mem, timeLabel, data.system.memory.percent);
+        }
+
+        function updateChartData(chart, label, value) {
+            // Add new data
+            chart.data.labels.push(label);
+            chart.data.datasets[0].data.push(value);
+            
+            // Maintain a rolling window of 30 data points
+            const maxPoints = 30;
+            if (chart.data.labels.length > maxPoints) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+            }
+            
+            // Auto-scale Y axis
+            const currentMax = Math.max(...chart.data.datasets[0].data);
+            chart.options.scales.y.max = Math.ceil(currentMax * 1.2);
+            
+            // Smooth update
+            chart.update('none');
+        }
+
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            
+            return `${days > 0 ? days + 'd ' : ''}${hours}h ${mins}m ${secs}s`;
+        }
+
+        // Start the monitoring
+        document.addEventListener('DOMContentLoaded', function() {
+            updateData();
+            
+            // Detect visibility changes
+            document.addEventListener('visibilitychange', function() {
+                if (!document.hidden) {
+                    // Refresh immediately when tab becomes visible
+                    updateData();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
