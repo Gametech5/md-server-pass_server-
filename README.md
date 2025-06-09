@@ -19,3 +19,11 @@
    ```bash
    git clone https://github.com/Gametech5/masterdev-behind.git
    cd masterdev-behind
+
+2. Installeer de packages:
+   ```bash
+   npm init
+   npm install dotenv express fs child_process os body-parser cors http jsonwebtoken bcrypt nodemailer
+3. Run de server:
+   ```bash
+   node server.js
