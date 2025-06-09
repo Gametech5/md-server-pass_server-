@@ -170,6 +170,7 @@
                             <div class="info-text"><strong>Uptime:</strong> <span id="uptime">--</span></div>
                             <div class="info-text"><strong>Last Update:</strong> <span id="timestamp">--:--:--</span></div>
                             <div class="info-text"><strong>Hostname:</strong> <span id="hostname">--</span></div>
+                            <div class="info-text"><strong>local IP Address:</strong> <span id="ip-address">--</span></div>
                         </div>
                     </div>
                 </div>
@@ -360,7 +361,9 @@
             document.getElementById('timestamp').textContent = 
                 data.timestamp;
             document.getElementById('hostname').textContent = 
-                window.location.hostname;
+                data.hostname;
+            document.getElementById('ip-address').textContent =
+                data.ip_adress || 'Unknown';  // Changed from ip_address to ip_adress
         }
 
         function updateCharts(data) {

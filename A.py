@@ -54,6 +54,31 @@ def get_system_info():
         'uptime': time.time() - psutil.boot_time()
     }
 
+def gethostname():
+    try:
+        return os.uname().nodename
+    except Exception as e:
+        print(f"Hostname error: {e}")
+        return "Unknown"
+    
+def get_local_ip():
+    try:
+        # More reliable method using Python's stdlib
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # Doesn't even have to be reachable
+            s.connect(('10.255.255.255', 1))
+            ip = s.getsockname()[0]
+        except Exception:
+            ip = '127.0.0.1'
+        finally:
+            s.close()
+        return ip
+    except Exception as e:
+        print(f"IP error: {e}")
+        return "Unknown"
+    
 @app.route('/')
 def dashboard():
     return render_template('dashboard.html')
@@ -64,7 +89,9 @@ def get_data():
         'cpu': get_cpu_info(),
         'gpu': get_gpu_info(),
         'system': get_system_info(),
-        'timestamp': time.strftime('%H:%M:%S')
+        'timestamp': time.strftime('%H:%M:%S'),
+        'hostname': gethostname(),
+        'ip_adress': get_local_ip()
     })
 
 if __name__ == '__main__':
