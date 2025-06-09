@@ -7,7 +7,6 @@ const os = require('os');
 const bodyParser = require("body-parser");
 const cors = require('cors');
 const http = require('http');
-const { Server } = require('socket.io');
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const nodemailer = require('nodemailer');
