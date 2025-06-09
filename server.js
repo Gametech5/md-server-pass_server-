@@ -1046,20 +1046,3 @@ app.listen(PORT, () => {
     console.log(`🚀 Server draait op poort ${PORT}`);
     console.log(Math.floor(Math.random() * 10001));
 });
-
-
-// Logging
-setInterval(() => {
-  try {
-    const tempRaw = execSync('vcgencmd measure_temp').toString();
-    const temperature = tempRaw.match(/temp=([\d.]+)'C/)[1];
-    const cpuLoad = os.loadavg()[0].toFixed(2);
-    const now = new Date().toISOString();
-    const logLine = `${now} | CPU temp: ${temperature}°C | CPU load: ${cpuLoad}\n`;
-
-    fs.appendFileSync('server_log.txt', logLine);
-    console.log(logLine.trim());
-  } catch (err) {
-    console.error('Fout bij loggen:', err);
-  }
-}, 10000);
