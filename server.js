@@ -701,15 +701,9 @@ app.post("/add-code", authenticate, (req, res) => {
 
 // Projecten ophalen
 app.get("/projects", authenticate, async (req, res) => {
-    try {
-        let projects = await readJSON(PROJECTS_FILE);
-
-        let userProjects = projects.filter((p) => p.owner === req.user.username);
-        res.json(userProjects);
-    } catch (err) {
-        console.error("❌ Fout bij laden van projecten:", err);
-        res.status(500).json({ error: "Serverfout bij ophalen van projecten." });
-    }
+    let projects = await readJSON(PROJECTS_FILE);
+    let userProjects = projects.filter((p) => p.owner === req.user.username);
+    res.json(userProjects);
 });
 
 // Projecten ophalen van een andere gebruiker voor admin's
@@ -736,6 +730,7 @@ app.get("/project/:uid", authenticate, (req, res) => {
 // Project verwijderen
 app.post("/delete-project", authenticate, async (req, res) => {
     let projects = await readJSON(PROJECTS_FILE);
+    console.log("Inhoud van projects:", projects);
     const { name, UID } = req.body;
 
     const projectToDelete = projects.find(
@@ -774,8 +769,8 @@ app.post("/delete-project", authenticate, async (req, res) => {
 
 // Code voor nieuwe delete (nog niet klaar voor productie)
 
-app.post("/new-delete-project", authenticate, (req, res) => {
-    let projects = readJSON(PROJECTS_FILE);
+app.post("/new-delete-project", authenticate, async (req, res) => {
+    let projects = await readJSON(PROJECTS_FILE);
     const { name, UID } = req.body;
 
     const projectToDelete = projects.find(
@@ -800,7 +795,7 @@ app.post("/new-delete-project", authenticate, (req, res) => {
     projectToDelete.timeOfExecution = executionDate.toISOString(); 
 
     // Schrijf de wijzigingen terug naar het bestand
-    writeJSON(PROJECTS_FILE, projects);
+    await writeJSON(PROJECTS_FILE, projects);
 
     res.json({ message: "Project gemarkeerd voor verwijdering" });
 });
