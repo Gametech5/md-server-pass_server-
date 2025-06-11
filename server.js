@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { ftpDownload, ftpUpload } = require('./ftpHelper');
+const { ftpDownload, ftpUpload, ftpUploadFile } = require('./ftpHelper');
 const express = require("express");
 const fs = require("fs");
 const { execSync } = require('child_process');
@@ -10,8 +10,10 @@ const http = require('http');
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const nodemailer = require('nodemailer');
+const { Server } = require("socket.io");
 const app = express(); // 👈 Moet vóór server komen
 const server = http.createServer(app);
+const ftp = require("basic-ftp");
 const io = new Server(server, {
   cors: {
     origin: '*', // Pas dit aan als je alleen een specifieke frontend toestaat
@@ -64,9 +66,50 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-app.post('/upload', upload.array('image', 10), (req, res) => {
-  if (!req.files) return res.status(400).json({ error: 'Geen bestanden ontvangen' });
-  res.json({ urls: req.files.map(file => '/mnt/hdd/uploads/' + file.filename) });
+app.post('/upload', upload.array('image', 10), async (req, res) => {
+    if (!req.files?.length) {
+        return res.status(400).json({ error: 'No files received' });
+    }
+
+    const urls = [];
+
+    // Upload elk bestand via FTP en bouw de urls-lijst op
+    for (const file of req.files) {
+        await ftpUploadFile(file.path, `uploads/${file.filename}`);
+        urls.push('/mnt/hdd/uploads/' + file.filename);
+    }
+
+    // Probeer bestaande projecten.json te lezen
+    let projects = [];
+    try {
+        const raw = await fs.readFile(path, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+            projects = parsed;
+        } else {
+            console.warn("projects.json bevat geen array. Nieuwe array aangemaakt.");
+        }
+    } catch (err) {
+        console.warn("projects.json kon niet worden gelezen of bevatte ongeldige JSON. Nieuwe array aangemaakt.");
+    }
+
+    // Voeg nieuwe project(en) toe
+    for (const url of urls) {
+        projects.push({
+            id: Date.now() + Math.floor(Math.random() * 1000), // unieke ID
+            filename: url.split('/').pop(),
+            url: url
+        });
+    }
+
+    // Schrijf geüpdatete lijst terug naar disk
+    try {
+        await fs.writeFile(path, JSON.stringify(projects, null, 2));
+    } catch (err) {
+        return res.status(500).json({ error: 'Kan projects.json niet opslaan' });
+    }
+
+    res.json({ urls });
 });
 
 function readFeedback() {
@@ -109,7 +152,48 @@ function deleteImage(imageUrl) {
 }
 
 // Statische bestanden serveren
-app.use('/mnt/hdd/uploads', express.static(uploadDir));
+app.get('/mnt/hdduploads/:filename', async (req, res) => {
+  const filename = req.params.filename;
+
+  const client = new ftp.Client();
+  client.ftp.verbose = true;  // Zet verbose aan voor debug output
+
+  try {
+    await client.access({
+      host: "192.168.1.111",
+      user: "admin",
+      password: "admin",
+      secure: false,
+    });
+
+    await client.cd("/data/user_files/uploads");
+    const currentDir = await client.pwd();
+    console.log("FTP current directory:", currentDir);
+
+    // Zet header voor bestandstype (optioneel, kan je uitbreiden)
+
+    // Probeer eerst te checken of bestand bestaat:
+    const fileList = await client.list();
+    const found = fileList.find(f => f.name === filename);
+    if (!found) {
+      console.log('Bestand niet gevonden in FTP list:', filename);
+      res.status(404).send('Bestand niet gevonden');
+      client.close();
+      return;
+    }
+
+    await client.downloadTo(res, filename);
+    // Na streaming niet zelf sluiten, client.close() wordt afgerond als download klaar is
+
+  } catch (err) {
+    console.error('FTP download error:', err);
+    if (!res.headersSent) res.status(500).send('Fout bij downloaden bestand');
+  } finally {
+    client.close();
+  }
+});
+
+
 
 const tmpDir = os.tmpdir();
 
@@ -138,30 +222,31 @@ const writeJSON = async (ftpFilePath, data) => {
 
 
 // Check of gebruiker al bestaat
-const userExists = (username) => {
-    let users = readJSON(USERS_FILE);
+const userExists = async (username) => {
+    let users = await readJSON(USERS_FILE);
     return users.some(user => user.username === username);
 };
 
 // Is de server wel levend?
-
 app.get('/health-check', (req, res) => {
     res.status(200).send('Server is up!');
 });
 
 // Controleer of gebruikersnaam al bestaat (real-time validatie)
-app.post("/check-username", (req, res) => {
+app.post("/check-username", async (req, res) => {
     const { username } = req.body;
     if (!username) {
         return res.status(400).json({ error: "Gebruikersnaam is vereist!" });
     }
 
-    if (userExists(username)) {
+    const exists = await userExists(username);
+    if (exists) {
         return res.status(409).json({ error: "Gebruikersnaam is al in gebruik!" }); // 409 = Conflict
     }
 
     res.json({ message: "Gebruikersnaam beschikbaar" });
 });
+
 
 // Oude code die klaar is voor bijv publieke projecten
 
@@ -231,7 +316,7 @@ app.put("/edit-usr", async (req, res) => {
 
 app.post("/edit-passwd", async (req, res) => {
 const { email, new_password } = req.body;
-const users = readJSON(USERS_FILE);
+const users = awaitreadJSON(USERS_FILE);
 const userIndex = users.findIndex(user => user.email === email);
 
 if (userIndex === -1) {
@@ -244,7 +329,7 @@ const newPassword = await bcrypt.hash(new_password,10);
 
 user.password = newPassword;
 
-writeJSON(USERS_FILE, users);
+await writeJSON(USERS_FILE, users);
 
 
 res.json({ success: true, message: "YAYYYY" });
@@ -278,7 +363,7 @@ app.post("/verify-rst-code", (req, res) => {
 
 app.post("/send-rst-code", async (req, res) => {
   const { username, email } = req.body;
-  const users = readJSON(USERS_FILE);
+  const users = await readJSON(USERS_FILE);
   const UserIndex = users.findIndex(user => user.email === email);
   if (UserIndex === -1){
      return res.status(404).json({success: false, error: "User not found"});
@@ -330,8 +415,6 @@ app.post("/send-rst-code", async (req, res) => {
 });
 
 // Stuur code voor account aanmaken
-
-
 app.post("/send-code", async (req, res) => {
   console.log("⚙️ /send-code payload:", req.body);
   const { username, email } = req.body;
@@ -410,7 +493,9 @@ app.post("/sign", async (req, res) => {
         return res.status(400).json({ error: "Gebruikersnaam en wachtwoord zijn verplicht!" });
     }
 
-    if (userExists(username)) {
+    const exists = await userExists(username);
+
+    if (exists) {
         return res.status(409).json({ error: "Gebruiker bestaat al!" });
     }
 
@@ -483,9 +568,11 @@ app.get('/feedback', authenticate, (req, res) => {
 
 // Upload profielafbeelding
 
-app.post('/upload-pfp', upload.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'Geen bestand ontvangen' });
-  res.json({ url: `/uploads/${req.file.filename}` });
+app.post('/upload-pfp', upload.single('image'), async (req, res) => {
+  const localPath = req.file.path;
+  const remotePath = `uploads/${req.file.filename}`;
+    await ftpUpload(localPath, remotePath);
+    res.json({ url: remotePath});
 });
 
 // Waarom tf bestaat deze hier?

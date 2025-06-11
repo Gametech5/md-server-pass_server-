@@ -54,4 +54,48 @@ async function ftpUpload(localPath, remotePath) {
     client.close();
 }
 
-module.exports = { ftpDownload, ftpUpload };
+async function ftpUploadFile(localPath, remotePath) {
+    const client = new ftp.Client();
+    client.ftp.verbose = false; // Turn off verbose in production
+
+    try {
+        // 1. Connect to server
+        await client.access({
+            host: process.env.FTP_HOST,
+            user: process.env.FTP_USER,
+            password: process.env.FTP_PASS,
+            secure: false
+        });
+
+        // 2. Ensure correct directory
+        await client.cd("/data/user_files");
+
+        // 3. Upload file
+        console.log(`📤 Uploading: ${path.basename(localPath)}`);
+        await client.uploadFrom(localPath, remotePath);
+        
+        return {
+            success: true,
+            remotePath: remotePath
+        };
+    } catch (err) {
+        console.error("❌ Upload failed:", err.message);
+        return {
+            success: false,
+            error: err.message
+        };
+    } finally {
+        if (client && !client.closed) {
+            await client.close();
+        }
+        
+        // Optional: Clean up local temp file
+        try {
+            await fs.promises.unlink(localPath);
+        } catch (cleanupErr) {
+            console.warn("⚠️ Could not clean up temp file:", cleanupErr.message);
+        }
+    }
+}
+
+module.exports = { ftpDownload, ftpUpload, ftpUploadFile };
